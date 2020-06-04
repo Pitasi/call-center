@@ -1,3 +1,36 @@
+# Call Center
+
+Call Center is a simulator: an user can *call* the center, an automated
+responder lists the available options and the user can dial its choice.
+
+The actual call is done over TCP. The messages exchanged by client and server
+are encoded using protobuf.
+
+The services offered by the call center are:
+
+| ID | Name              | Description                                      |
+| -- | ----              | -----------                                      |
+| 1  | Weather forecasts | Replies telling what's the weather like tomorrow |
+| 2  | Jokes of the day  | Replies with a different joke everyday           |
+| 3  | Ask an operator   | Starts a conversation to an operator             |
+
+When the call is started from the user, the responder lists all the services
+above. The user can dial one of the IDs to make a choice. At the end of the
+conversation, the user is *returned* to the initial responder list for starting
+again.
+
+## Operators
+
+The *operator* for this exercise is simulated by an echo server.
+
+The echo server replies to a maximum number of messages from the user (default:
+3) and for a limited amount of time (default: 10 seconds).
+
+---
+---
+
+# Original readme below
+
 # erl_playground
 
 An OTP application to start coding without the boring stuff.
@@ -26,6 +59,3 @@ Google Protocol Buffer is automatically compiled starting from the included prot
 
 ## What you have out of the box
 This is a playgrounf application that allows you to focus on the logic of your system, rather than the boring technical stuff. It includes a basic Erlang/OTP application structure with a TCP client and a TCP server.
-
-# Candidate comments
-Please add here everythig you need...
