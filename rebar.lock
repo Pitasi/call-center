@@ -1,0 +1,26 @@
+{"1.1.0",
+[{<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
+ {<<"gpb">>,
+  {git,"git://github.com/tomas-abrahamsson/gpb.git",
+       {ref,"ba15862e05ccdca16f43aefe952926c467c23dfd"}},
+  0},
+ {<<"lager">>,
+  {git,"https://github.com/erlang-lager/lager.git",
+       {ref,"1c0ab772df0535d46a4467857954ee4dcf7f3078"}},
+  0},
+ {<<"ranch">>,
+  {git,"git://github.com/ninenines/ranch",
+       {ref,"3190aef88aea04d6dce8545fe9b4574288903f44"}},
+  0},
+ {<<"recon">>,
+  {git,"git://github.com/ferd/recon.git",
+       {ref,"a1551ddaf4ec2982a0e1451d5fea635b07243dee"}},
+  0},
+ {<<"vsn_transform">>,
+  {git,"git://github.com/electricimp/vsn_transform.git",
+       {ref,"dc19412c60d272c00ab3671da1787fffec70c3d9"}},
+  0}]}.
+[
+{pkg_hash,[
+ {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>}]}
+].
