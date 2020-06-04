@@ -1,0 +1,14 @@
+{application, erl_playground,
+ [{description, "A safe playground for all your dirty stuff"},
+  {vsn, "1.0.0"},
+  {registered, []},
+  {mod, { erl_playground_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    lager,
+    recon
+   ]},
+  {env,[]},
+  {modules, []}
+ ]}.

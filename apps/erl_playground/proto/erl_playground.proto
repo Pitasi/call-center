@@ -1,0 +1,22 @@
+message create_session {
+    required string username = 1;
+}
+
+message server_message {
+    required string message = 1;
+}
+
+message req {
+    enum type_enum {
+        create_session = 1;
+        server_message = 2;
+    }
+    required type_enum type = 1;
+    optional create_session create_session_data = 2;
+    optional server_message server_message_data = 3;
+}
+
+message envelope {
+    required req uncompressed_data = 2;
+}
+

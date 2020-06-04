@@ -1,0 +1,6 @@
+-sname erl_playground
+
+-setcookie erl_playground_cookie
+
++K true
++A30
