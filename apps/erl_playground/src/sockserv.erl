@@ -139,22 +139,26 @@ code_change(_OldVsn, State, _Extra) ->
 process_packet(undefined, State, _Now) ->
     _ = lager:notice("client sent invalid packet, ignoring ~p",[State]),
     State;
-process_packet(#req{ type = Type } = Req, State = {ok, #state{socket = Socket, transport = Transport}}, _Now)
-    when Type =:= create_session ->
-    #req{
-        create_session_data = #create_session {
-            username = UserName
-        }
-    } = Req,
-    _ = lager:info("create_session received from ~p", [UserName]),
-
-    Response = #req{
-        type = server_message,
-        server_message_data = #server_message {
-            message = <<"OK">>
-        }
-    },
+process_packet(#req{ type = Type } = Req, State = {ok, #state{socket = Socket, transport = Transport}}, _Now) ->
+    Response = handle_request(Type, Req),
     Data = utils:add_envelope(Response),
     Transport:send(Socket,Data),
 
     State.
+
+%% ------------------------------------------------------------------
+%% Request handlers
+%% ------------------------------------------------------------------
+
+handle_request(create_session, #req{
+	create_session_data = #create_session {
+		username = UserName
+	}
+}) ->
+    _ = lager:info("create_session received from ~p", [UserName]),
+    #req{
+        type = server_message,
+        server_message_data = #server_message {
+            message = <<"OK">>
+        }
+    }.
