@@ -26,6 +26,24 @@ The *operator* for this exercise is simulated by an echo server.
 The echo server replies to a maximum number of messages from the user (default:
 3) and for a limited amount of time (default: 10 seconds).
 
+# Run
+
+For executing the app, rebar3 can be used:
+
+```
+$ rebar3 shell
+```
+
+This will take care of fetching dependencies, compiling, booting services, and
+finally starting an Erlang shell.
+
+While in the shell, `sockclient` module can be used. For example:
+
+```
+> sockclient:connect().
+> sockclient:send_create_session().
+```
+
 ---
 ---
 
