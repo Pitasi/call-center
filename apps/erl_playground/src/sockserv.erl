@@ -155,7 +155,7 @@ handle_request(create_session, #req{
 		username = UserName
 	}
 }) ->
-    _ = lager:info("create_session received from ~p", [UserName]),
+    lager:info("create_session received from ~p", [UserName]),
     #req{
         type = server_message,
         server_message_data = #server_message {

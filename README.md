@@ -19,12 +19,35 @@ above. The user can dial one of the IDs to make a choice. At the end of the
 conversation, the user is *returned* to the initial responder list for starting
 again.
 
-## Operators
+## Implementation
+
+### Server
+
+`sockserver` module handles incoming TCP connections spawning a new process for
+each of them.
+
+Inside the module are also present the actual handlers based on the protobuf
+message type. Handlers build responses gathering data from other services.
+
+
+### Weather service
+
+Weather service (`weather` module) provides a simple API to get forecasts for
+tomorrow's weather.
+
+
+### Client
+
+Client is still a work in progress.
+
+
+### Operators
 
 The *operator* for this exercise is simulated by an echo server.
 
 The echo server replies to a maximum number of messages from the user (default:
 3) and for a limited amount of time (default: 10 seconds).
+
 
 # Run
 
