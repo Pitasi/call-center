@@ -132,5 +132,5 @@ process_packet(#req{ type = Type } = Req, State, _Now)
             message = Message
         }
     } = Req,
-    _ = lager:info("server_message received: ~p", [Message]),
+		io:format(Message),
     State.

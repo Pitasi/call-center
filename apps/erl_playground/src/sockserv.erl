@@ -87,6 +87,7 @@ init(Ref, Socket, Transport, [_ProxyProtocol]) ->
         transport = Transport
     }},
 
+		send(welcome(), State),
     gen_server:enter_loop(?MODULE, [], State).
 
 %% ------------------------------------------------------------------
@@ -139,16 +140,37 @@ code_change(_OldVsn, State, _Extra) ->
 process_packet(undefined, State, _Now) ->
     _ = lager:notice("client sent invalid packet, ignoring ~p",[State]),
     State;
-process_packet(#req{ type = Type } = Req, State = {ok, #state{socket = Socket, transport = Transport}}, _Now) ->
+process_packet(#req{ type = Type } = Req, State, _Now) ->
     Response = handle_request(Type, Req),
-    Data = utils:add_envelope(Response),
-    Transport:send(Socket,Data),
+		send(Response, State).
 
+send(Response, State = {ok, #state{socket = Socket, transport = Transport}}) ->
+    Data = utils:add_envelope(Response),
+    Transport:send(Socket, Data),
     State.
 
 %% ------------------------------------------------------------------
 %% Request handlers
 %% ------------------------------------------------------------------
+
+welcome() ->
+    #req{
+        type = server_message,
+        server_message_data = #server_message {
+            message = io_lib:format(
+							"-------------------~n"
+							"| Call Center 1.0 |~n"
+							"-------------------~n"
+							"~n"
+							"Digit one of the following options:~n"
+							"  1. Weather forecasts~n"
+							"  2. Joke of the day~n"
+							"  3. Ask an operator~n"
+							"~n",
+							[]
+						)
+        }
+    }.
 
 handle_request(create_session, #req{
 	create_session_data = #create_session {
