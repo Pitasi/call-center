@@ -30,7 +30,8 @@
 
 -record(state, {
     socket :: any(), %ranch_transport:socket(),
-    transport
+    transport,
+    username=""
 }).
 -type state() :: #state{}.
 
@@ -108,10 +109,10 @@ handle_info({tcp, _Port, <<>>}, State) ->
 handle_info({tcp, _Port, Packet}, State = {ok, #state{socket = Socket}}) ->
     Req = utils:open_envelope(Packet),
 
-    State = process_packet(Req, State, utils:unix_timestamp()),
+    NewState = process_packet(Req, State, utils:unix_timestamp()),
     ok = inet:setopts(Socket, [{active, once}]),
 
-    {noreply, State};
+    {noreply, NewState};
 handle_info({tcp_closed, _Port}, State) ->
     {stop, normal, State};
 handle_info(Message, State) ->
@@ -140,9 +141,9 @@ code_change(_OldVsn, State, _Extra) ->
 process_packet(undefined, State, _Now) ->
     _ = lager:notice("client sent invalid packet, ignoring ~p",[State]),
     State;
-process_packet(#req{ type = Type } = Req, State, _Now) ->
-    Response = handle_request(Type, Req),
-    send(Response, State).
+process_packet(#req{ type = Type } = Req, {ok, State = #state{}}, _Now) ->
+    {Response, NewState} = handle_request(Type, Req, State),
+    send(Response, {ok, NewState}).
 
 send(Response, State = {ok, #state{socket = Socket, transport = Transport}}) ->
     Data = utils:add_envelope(Response),
@@ -153,34 +154,49 @@ send(Response, State = {ok, #state{socket = Socket, transport = Transport}}) ->
 %% Request handlers
 %% ------------------------------------------------------------------
 
-welcome() ->
+server_message(Msg) ->
     #req{
         type = server_message,
         server_message_data = #server_message {
-            message = io_lib:format(
-                "-------------------~n"
-                "| Call Center 1.0 |~n"
-                "-------------------~n"
-                "~n"
-                "Digit one of the following options:~n"
-                "  1. Weather forecasts~n"
-                "  2. Joke of the day~n"
-                "  3. Ask an operator~n"
-                "~n",
-                []
-            )
+            message = Msg
         }
     }.
+
+welcome() ->
+    server_message(io_lib:format(
+        "~n"
+        "-------------------~n"
+        "| Call Center 1.0 |~n"
+        "-------------------~n"
+        "~n"
+        "Digit one of the following options:~n"
+        "  1. Weather forecasts~n"
+        "  2. Joke of the day~n"
+        "  3. Ask an operator~n"
+        "~n",
+        []
+    )).
 
 handle_request(create_session, #req{
     create_session_data = #create_session {
         username = UserName
     }
-}) ->
+}, State) ->
     lager:info("create_session received from ~p", [UserName]),
-    #req{
-        type = server_message,
-        server_message_data = #server_message {
-            message = <<"OK">>
-        }
-    }.
+    NewState = State#state{username=UserName},
+    {server_message("OK"), NewState};
+
+handle_request(weather_req, _Req, State) ->
+    Timedates = [date:add_days(X) || X <- lists:seq(0, 6)],
+    Forecasts = [{Date, weather:for_date(Date)} || {Date, _} <- Timedates],
+    {server_message(build_forecasts_message(Forecasts)), State}.
+
+build_forecasts_message(Forecasts) ->
+    build_forecasts_message(Forecasts, "Weather forecasts:~n").
+
+build_forecasts_message([], Msg) -> Msg;
+build_forecasts_message([{{Y, M, D}, Weather}|Tl], Msg) ->
+    build_forecasts_message(
+      Tl,
+      io_lib:format("~s- ~B/~B/~B will be ~p~n", [Msg, D, M, Y, Weather])
+    ).

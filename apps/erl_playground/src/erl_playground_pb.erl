@@ -49,7 +49,7 @@
 -include("gpb.hrl").
 
 %% enumerated types
--type 'req.type_enum'() :: create_session | server_message.
+-type 'req.type_enum'() :: create_session | server_message | weather_req.
 -export_type(['req.type_enum'/0]).
 
 %% message types
@@ -182,6 +182,8 @@ e_mfield_envelope_uncompressed_data(Msg, Bin,
 'e_enum_req.type_enum'(server_message, Bin,
 		       _TrUserData) ->
     <<Bin/binary, 2>>;
+'e_enum_req.type_enum'(weather_req, Bin, _TrUserData) ->
+    <<Bin/binary, 3>>;
 'e_enum_req.type_enum'(V, Bin, _TrUserData) ->
     e_varint(V, Bin).
 
@@ -800,6 +802,7 @@ skip_64_envelope(<<_:64, Rest/binary>>, Z1, Z2, F@_1,
 
 'd_enum_req.type_enum'(1) -> create_session;
 'd_enum_req.type_enum'(2) -> server_message;
+'d_enum_req.type_enum'(3) -> weather_req;
 'd_enum_req.type_enum'(V) -> V.
 
 read_group(Bin, FieldNum) ->
@@ -1010,6 +1013,9 @@ v_msg_envelope(X, Path, _TrUserData) ->
 'v_enum_req.type_enum'(server_message, _Path,
 		       _TrUserData) ->
     ok;
+'v_enum_req.type_enum'(weather_req, _Path,
+		       _TrUserData) ->
+    ok;
 'v_enum_req.type_enum'(V, Path, TrUserData)
     when is_integer(V) ->
     v_type_sint32(V, Path, TrUserData);
@@ -1087,7 +1093,8 @@ cons(Elem, Acc, _TrUserData) -> [Elem | Acc].
 
 get_msg_defs() ->
     [{{enum, 'req.type_enum'},
-      [{create_session, 1}, {server_message, 2}]},
+      [{create_session, 1}, {server_message, 2},
+       {weather_req, 3}]},
      {{msg, create_session},
       [#field{name = username, fnum = 1, rnum = 2,
 	      type = string, occurrence = required, opts = []}]},
@@ -1160,7 +1167,8 @@ find_msg_def(_) -> error.
 
 
 find_enum_def('req.type_enum') ->
-    [{create_session, 1}, {server_message, 2}];
+    [{create_session, 1}, {server_message, 2},
+     {weather_req, 3}];
 find_enum_def(_) -> error.
 
 
@@ -1175,13 +1183,15 @@ enum_value_by_symbol('req.type_enum', Sym) ->
 'enum_symbol_by_value_req.type_enum'(1) ->
     create_session;
 'enum_symbol_by_value_req.type_enum'(2) ->
-    server_message.
+    server_message;
+'enum_symbol_by_value_req.type_enum'(3) -> weather_req.
 
 
 'enum_value_by_symbol_req.type_enum'(create_session) ->
     1;
 'enum_value_by_symbol_req.type_enum'(server_message) ->
-    2.
+    2;
+'enum_value_by_symbol_req.type_enum'(weather_req) -> 3.
 
 
 get_service_names() -> [].

@@ -10,6 +10,7 @@ message req {
     enum type_enum {
         create_session = 1;
         server_message = 2;
+        weather_req = 3;
     }
     required type_enum type = 1;
     optional create_session create_session_data = 2;
