@@ -194,7 +194,10 @@ handle_request(call_id_req, _Req, #state{uid = UID} = State) ->
 handle_request(weather_req, _Req, State) ->
     Timedates = [date:add_days(X) || X <- lists:seq(0, 6)],
     Forecasts = [{Date, weather:for_date(Date)} || {Date, _} <- Timedates],
-    {server_message(build_forecasts_message(Forecasts)), State}.
+    {server_message(build_forecasts_message(Forecasts)), State};
+
+handle_request(joke_req, _Req, State) ->
+    {server_message(build_joke_message(jokes:of_today())), State}.
 
 build_forecasts_message(Forecasts) ->
     build_forecasts_message(Forecasts, "Weather forecasts:~n").
@@ -205,3 +208,6 @@ build_forecasts_message([{{Y, M, D}, Weather}|Tl], Msg) ->
       Tl,
       io_lib:format("~s- ~B/~B/~B will be ~p~n", [Msg, D, M, Y, Weather])
     ).
+
+build_joke_message(Joke) ->
+    io_lib:format("Your joke of today: ~s~n", [Joke]).

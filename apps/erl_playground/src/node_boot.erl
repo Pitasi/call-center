@@ -75,6 +75,7 @@ boot(client_server) ->
 boot(only_server) ->
     sockserv:start(),
     weather:start(),
+    jokes:start(),
     ok;
 boot(only_client) ->
     sockclient:start_link(),
