@@ -31,6 +31,7 @@
 -record(state, {
     socket :: any(), %ranch_transport:socket(),
     transport,
+    uid,
     username=""
 }).
 -type state() :: #state{}.
@@ -85,7 +86,8 @@ init(Ref, Socket, Transport, [_ProxyProtocol]) ->
 
     State = {ok, #state{
         socket = Socket,
-        transport = Transport
+        transport = Transport,
+        uid = uid:generate()
     }},
 
     send(welcome(), State),
@@ -185,6 +187,9 @@ handle_request(create_session, #req{
     lager:info("create_session received from ~p", [UserName]),
     NewState = State#state{username=UserName},
     {server_message("OK"), NewState};
+
+handle_request(call_id_req, _Req, #state{uid = UID} = State) ->
+    {server_message(io_lib:format("Your call ID is ~s~n", [UID])), State};
 
 handle_request(weather_req, _Req, State) ->
     Timedates = [date:add_days(X) || X <- lists:seq(0, 6)],

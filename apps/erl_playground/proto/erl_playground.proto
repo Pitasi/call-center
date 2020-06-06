@@ -11,6 +11,7 @@ message req {
         create_session = 1;
         server_message = 2;
         weather_req = 3;
+        call_id_req = 4;
     }
     required type_enum type = 1;
     optional create_session create_session_data = 2;
