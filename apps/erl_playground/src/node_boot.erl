@@ -69,12 +69,12 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec boot(Init :: atom()) -> ok.
 boot(client_server) ->
-	boot(only_server),
-	boot(only_client),
+    boot(only_server),
+    boot(only_client),
     ok;
 boot(only_server) ->
     sockserv:start(),
-	weather:start(),
+    weather:start(),
     ok;
 boot(only_client) ->
     sockclient:start_link(),

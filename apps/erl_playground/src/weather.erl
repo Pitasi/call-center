@@ -14,10 +14,10 @@ start() -> gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 tomorrow() ->
-	gen_server:call(?SERVER, {weather, date:tomorrow()}).
+    gen_server:call(?SERVER, {weather, date:tomorrow()}).
 
 shutdown() ->
-	gen_server:call(?SERVER, terminate).
+    gen_server:call(?SERVER, terminate).
 
 
 %% Server functions
@@ -25,22 +25,22 @@ shutdown() ->
 init([]) -> {ok, []}. %% no treatment of info here!
 
 handle_call(terminate, _From, State) ->
-	{stop, normal, ok, State};
+    {stop, normal, ok, State};
 
 handle_call({weather, Date}, _From, State) ->
-	% calendar:valid_date(Date)
-	{reply, "TODO", State}.
+    % calendar:valid_date(Date)
+    {reply, "TODO", State}.
 
 handle_cast(Msg, State) ->
-	io:format("Unexpected cast: ~p~n",[Msg]),
-	{noreply, State}.
+    io:format("Unexpected cast: ~p~n",[Msg]),
+    {noreply, State}.
 
 handle_info(Msg, State) ->
-	io:format("Unexpected message: ~p~n",[Msg]),
-	{noreply, State}.
+    io:format("Unexpected message: ~p~n",[Msg]),
+    {noreply, State}.
 
 terminate(normal, _State) ->
-	ok.
+    ok.
 
 code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+    {ok, State}.

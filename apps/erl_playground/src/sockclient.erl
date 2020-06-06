@@ -102,7 +102,7 @@ handle_call(connect, _From, State) ->
     {reply, normal, State#state{socket = Socket}};
 handle_call(disconnect, _From, #state{socket = Socket} = State)
     when Socket =/= undefined ->
-    
+
     gen_tcp:shutdown(Socket, read_write),
 
     {reply, normal, State};
@@ -132,5 +132,5 @@ process_packet(#req{ type = Type } = Req, State, _Now)
             message = Message
         }
     } = Req,
-		io:format(Message),
+        io:format(Message),
     State.
