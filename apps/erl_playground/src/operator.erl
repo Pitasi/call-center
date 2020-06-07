@@ -1,7 +1,7 @@
 -module(operator).
 -behaviour(gen_server).
 
--export([start/0, start_link/0]).
+-export([start/2, start_link/2]).
 -export([ask/2, shutdown/1]).
 
 %% gen_server
@@ -10,8 +10,8 @@
 
 -define(SERVER, ?MODULE).
 
-start() -> gen_server:start(?MODULE, [], []).
-start_link() -> gen_server:start_link(?MODULE, [], []).
+start(Timeout, MaxReq) -> gen_server:start(?MODULE, {Timeout, MaxReq}, []).
+start_link(Timeout, MaxReq) -> gen_server:start_link(?MODULE, {Timeout, MaxReq}, []).
 shutdown(Pid) -> gen_server:call(Pid, terminate).
 
 ask(Pid, Question) -> gen_server:call(Pid, {ask, Question}).
@@ -19,11 +19,15 @@ ask(Pid, Question) -> gen_server:call(Pid, {ask, Question}).
 
 %% Server functions
 
-init([]) ->
-    Timeout = application:get_env(erl_playground, operator_timeout, 10000),
-    MaxReq = application:get_env(erl_playground, operator_max_requests, 3),
-    erlang:send_after(Timeout, self(), timeout),
+init({Timeout, MaxReq}) when MaxReq > 0 ->
+    init_timeout(Timeout),
     {ok, MaxReq}.
+
+init_timeout(Timeout) ->
+    case Timeout of
+        infinity -> ok;
+        _ -> erlang:send_after(Timeout, self(), timeout)
+    end.
 
 handle_call(terminate, _From, State) ->
     {stop, normal, ok, State};

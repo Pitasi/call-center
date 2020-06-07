@@ -193,7 +193,9 @@ handle_request(joke_req, _Req, State) ->
     {server_message(build_joke_message(jokes:of_today())), State};
 
 handle_request(operator_req, _Req, State) ->
-    {ok, Pid} = operator:start(),
+    Timeout = application:get_env(erl_playground, operator_timeout, 10000),
+    MaxReq = application:get_env(erl_playground, operator_max_requests, 3),
+    {ok, Pid} = operator:start(Timeout, MaxReq),
     erlang:monitor(process, Pid),
     NewState = State#state{operator = Pid},
     {server_message("[server] You are now connected to an operator.~n"), NewState};
