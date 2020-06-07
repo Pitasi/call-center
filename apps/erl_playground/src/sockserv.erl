@@ -77,8 +77,6 @@ start_link(Ref, Socket, Transport, Opts) ->
 %% ------------------------------------------------------------------
 
 init(Ref, Socket, Transport, [_ProxyProtocol]) ->
-    lager:info("sockserv init'ed ~p",[Socket]),
-
     ok = proc_lib:init_ack({ok, self()}),
     ok = ranch:accept_ack(Ref),
 
@@ -90,8 +88,6 @@ init(Ref, Socket, Transport, [_ProxyProtocol]) ->
         transport = Transport,
         uid = uid:generate()
     },
-
-    send(welcome(), State),
     gen_server:enter_loop(?MODULE, [], State).
 
 %% ------------------------------------------------------------------
@@ -149,8 +145,10 @@ process_packet(undefined, State, _Now) ->
     _ = lager:notice("client sent invalid packet, ignoring ~p",[State]),
     State;
 process_packet(#req{ type = Type } = Req, State = #state{}, _Now) ->
-    {Response, NewState} = handle_request(Type, Req, State),
-    send(Response, NewState).
+    case handle_request(Type, Req, State) of
+        {noreply, NewState} -> NewState;
+        {Response, NewState} -> send(Response, NewState)
+    end.
 
 send(Response, State = #state{socket = Socket, transport = Transport}) ->
     Data = utils:add_envelope(Response),
@@ -168,21 +166,6 @@ server_message(Msg) ->
             message = Msg
         }
     }.
-
-welcome() ->
-    server_message(io_lib:format(
-        "~n"
-        "-------------------~n"
-        "| Call Center 1.0 |~n"
-        "-------------------~n"
-        "~n"
-        "Digit one of the following options:~n"
-        "  1. Weather forecasts~n"
-        "  2. Joke of the day~n"
-        "  3. Ask an operator~n"
-        "~n",
-        []
-    )).
 
 handle_request(create_session, #req{
     create_session_data = #create_session {
@@ -209,6 +192,14 @@ handle_request(operator_req, _Req, State) ->
     erlang:monitor(process, Pid),
     NewState = State#state{operator = Pid},
     {server_message("[server] You are now connected to an operator.~n"), NewState};
+
+handle_request(operator_quit_req, _Req, #state{operator = undefined} = State) ->
+    {noreply, State};
+
+handle_request(operator_quit_req, _Req, #state{operator = Pid} = State)
+  when Pid =/= undefined ->
+    operator:shutdown(Pid),
+    {server_message("[server] Bye!"), State};
 
 handle_request(operator_msg_req, _Req, #state{operator = undefined} = State) ->
     {server_message("You aren't connected to an operator.~n"), State};

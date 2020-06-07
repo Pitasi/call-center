@@ -49,7 +49,7 @@
 -include("gpb.hrl").
 
 %% enumerated types
--type 'req.type_enum'() :: create_session | server_message | weather_req | call_id_req | joke_req | operator_req | operator_msg_req.
+-type 'req.type_enum'() :: create_session | server_message | weather_req | call_id_req | joke_req | operator_req | operator_msg_req | operator_quit_req.
 -export_type(['req.type_enum'/0]).
 
 %% message types
@@ -226,6 +226,9 @@ e_mfield_envelope_uncompressed_data(Msg, Bin,
 'e_enum_req.type_enum'(operator_msg_req, Bin,
 		       _TrUserData) ->
     <<Bin/binary, 7>>;
+'e_enum_req.type_enum'(operator_quit_req, Bin,
+		       _TrUserData) ->
+    <<Bin/binary, 8>>;
 'e_enum_req.type_enum'(V, Bin, _TrUserData) ->
     e_varint(V, Bin).
 
@@ -992,6 +995,7 @@ skip_64_envelope(<<_:64, Rest/binary>>, Z1, Z2, F@_1,
 'd_enum_req.type_enum'(5) -> joke_req;
 'd_enum_req.type_enum'(6) -> operator_req;
 'd_enum_req.type_enum'(7) -> operator_msg_req;
+'d_enum_req.type_enum'(8) -> operator_quit_req;
 'd_enum_req.type_enum'(V) -> V.
 
 read_group(Bin, FieldNum) ->
@@ -1249,6 +1253,9 @@ v_msg_envelope(X, Path, _TrUserData) ->
 'v_enum_req.type_enum'(operator_msg_req, _Path,
 		       _TrUserData) ->
     ok;
+'v_enum_req.type_enum'(operator_quit_req, _Path,
+		       _TrUserData) ->
+    ok;
 'v_enum_req.type_enum'(V, Path, TrUserData)
     when is_integer(V) ->
     v_type_sint32(V, Path, TrUserData);
@@ -1328,7 +1335,8 @@ get_msg_defs() ->
     [{{enum, 'req.type_enum'},
       [{create_session, 1}, {server_message, 2},
        {weather_req, 3}, {call_id_req, 4}, {joke_req, 5},
-       {operator_req, 6}, {operator_msg_req, 7}]},
+       {operator_req, 6}, {operator_msg_req, 7},
+       {operator_quit_req, 8}]},
      {{msg, create_session},
       [#field{name = username, fnum = 1, rnum = 2,
 	      type = string, occurrence = required, opts = []}]},
@@ -1417,7 +1425,8 @@ find_msg_def(_) -> error.
 find_enum_def('req.type_enum') ->
     [{create_session, 1}, {server_message, 2},
      {weather_req, 3}, {call_id_req, 4}, {joke_req, 5},
-     {operator_req, 6}, {operator_msg_req, 7}];
+     {operator_req, 6}, {operator_msg_req, 7},
+     {operator_quit_req, 8}];
 find_enum_def(_) -> error.
 
 
@@ -1438,7 +1447,9 @@ enum_value_by_symbol('req.type_enum', Sym) ->
 'enum_symbol_by_value_req.type_enum'(5) -> joke_req;
 'enum_symbol_by_value_req.type_enum'(6) -> operator_req;
 'enum_symbol_by_value_req.type_enum'(7) ->
-    operator_msg_req.
+    operator_msg_req;
+'enum_symbol_by_value_req.type_enum'(8) ->
+    operator_quit_req.
 
 
 'enum_value_by_symbol_req.type_enum'(create_session) ->
@@ -1450,7 +1461,9 @@ enum_value_by_symbol('req.type_enum', Sym) ->
 'enum_value_by_symbol_req.type_enum'(joke_req) -> 5;
 'enum_value_by_symbol_req.type_enum'(operator_req) -> 6;
 'enum_value_by_symbol_req.type_enum'(operator_msg_req) ->
-    7.
+    7;
+'enum_value_by_symbol_req.type_enum'(operator_quit_req) ->
+    8.
 
 
 get_service_names() -> [].

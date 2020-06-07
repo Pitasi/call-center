@@ -19,6 +19,7 @@ message req {
         joke_req = 5;
         operator_req = 6;
         operator_msg_req = 7;
+        operator_quit_req = 8;
     }
     required type_enum type = 1;
     optional create_session create_session_data = 2;

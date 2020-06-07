@@ -9,7 +9,7 @@
 
 -export([start_link/0]). -ignore_xref([{start_link, 4}]).
 -export([connect/0, disconnect/0]).
--export([send_create_session/1, send_weather_req/0, send_call_id_req/0, send_joke_req/0, send_operator_req/0, send_operator_msg_req/1]).
+-export([send_create_session/1, send_weather_req/0, send_call_id_req/0, send_joke_req/0, send_operator_req/0, send_operator_quit_req/0, send_operator_msg_req/1]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -86,6 +86,13 @@ send_joke_req() ->
 send_operator_req() ->
     Req = #req {
         type = operator_req
+    },
+    gen_server:cast(whereis(?SERVER), {send_msg, Req}).
+
+-spec send_operator_quit_req() -> ok.
+send_operator_quit_req() ->
+    Req = #req {
+        type = operator_quit_req
     },
     gen_server:cast(whereis(?SERVER), {send_msg, Req}).
 
