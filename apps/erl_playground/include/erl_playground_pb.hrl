@@ -21,12 +21,20 @@
         }).
 -endif.
 
+-ifndef('OPERATOR_MESSAGE_PB_H').
+-define('OPERATOR_MESSAGE_PB_H', true).
+-record(operator_message,
+        {message                :: iodata()         % = 1
+        }).
+-endif.
+
 -ifndef('REQ_PB_H').
 -define('REQ_PB_H', true).
 -record(req,
-        {type                   :: create_session | server_message | weather_req | call_id_req | joke_req | integer(), % = 1, enum req.type_enum
+        {type                   :: create_session | server_message | weather_req | call_id_req | joke_req | operator_req | operator_msg_req | integer(), % = 1, enum req.type_enum
          create_session_data    :: erl_playground_pb:create_session() | undefined, % = 2
-         server_message_data    :: erl_playground_pb:server_message() | undefined % = 3
+         server_message_data    :: erl_playground_pb:server_message() | undefined, % = 3
+         operator_msg_data      :: erl_playground_pb:operator_message() | undefined % = 4
         }).
 -endif.
 

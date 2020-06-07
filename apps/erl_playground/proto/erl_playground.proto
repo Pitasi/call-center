@@ -6,6 +6,10 @@ message server_message {
     required string message = 1;
 }
 
+message operator_message {
+    required string message = 1;
+}
+
 message req {
     enum type_enum {
         create_session = 1;
@@ -13,10 +17,13 @@ message req {
         weather_req = 3;
         call_id_req = 4;
         joke_req = 5;
+        operator_req = 6;
+        operator_msg_req = 7;
     }
     required type_enum type = 1;
     optional create_session create_session_data = 2;
     optional server_message server_message_data = 3;
+    optional operator_message operator_msg_data = 4;
 }
 
 message envelope {

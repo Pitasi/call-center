@@ -32,6 +32,7 @@
     socket :: any(), %ranch_transport:socket(),
     transport,
     uid,
+    operator,
     username=""
 }).
 -type state() :: #state{}.
@@ -84,11 +85,11 @@ init(Ref, Socket, Transport, [_ProxyProtocol]) ->
     Opts = [{packet, 2}, {packet_size, 16384}, {active, once}, {nodelay, true}],
     _ = Transport:setopts(Socket, Opts),
 
-    State = {ok, #state{
+    State = #state{
         socket = Socket,
         transport = Transport,
         uid = uid:generate()
-    }},
+    },
 
     send(welcome(), State),
     gen_server:enter_loop(?MODULE, [], State).
@@ -99,7 +100,7 @@ init(Ref, Socket, Transport, [_ProxyProtocol]) ->
 
 %% This function is never called. We only define it so that
 %% we can use the -behaviour(gen_server) attribute.
-init([]) -> {ok, undefined}.
+init([]) -> undefined.
 
 handle_cast(Message, State) ->
     _ = lager:notice("unknown handle_cast ~p", [Message]),
@@ -108,7 +109,7 @@ handle_cast(Message, State) ->
 handle_info({tcp, _Port, <<>>}, State) ->
     _ = lager:notice("empty handle_info state: ~p", [State]),
     {noreply, State};
-handle_info({tcp, _Port, Packet}, State = {ok, #state{socket = Socket}}) ->
+handle_info({tcp, _Port, Packet}, State = #state{socket = Socket}) ->
     Req = utils:open_envelope(Packet),
 
     NewState = process_packet(Req, State, utils:unix_timestamp()),
@@ -117,8 +118,12 @@ handle_info({tcp, _Port, Packet}, State = {ok, #state{socket = Socket}}) ->
     {noreply, NewState};
 handle_info({tcp_closed, _Port}, State) ->
     {stop, normal, State};
+
+handle_info({'DOWN', _, process, Operator, normal}, #state{operator = Operator} = State) ->
+    {noreply, handle_operator_disconnect(State)};
+
 handle_info(Message, State) ->
-    _ = lager:notice("unknown handle_info ~p", [Message]),
+    _ = lager:notice("unknown handle_info ~p -- ~p", [Message, State]),
     {noreply, State}.
 
 handle_call(Message, _From, State) ->
@@ -143,11 +148,11 @@ code_change(_OldVsn, State, _Extra) ->
 process_packet(undefined, State, _Now) ->
     _ = lager:notice("client sent invalid packet, ignoring ~p",[State]),
     State;
-process_packet(#req{ type = Type } = Req, {ok, State = #state{}}, _Now) ->
+process_packet(#req{ type = Type } = Req, State = #state{}, _Now) ->
     {Response, NewState} = handle_request(Type, Req, State),
-    send(Response, {ok, NewState}).
+    send(Response, NewState).
 
-send(Response, State = {ok, #state{socket = Socket, transport = Transport}}) ->
+send(Response, State = #state{socket = Socket, transport = Transport}) ->
     Data = utils:add_envelope(Response),
     Transport:send(Socket, Data),
     State.
@@ -197,7 +202,32 @@ handle_request(weather_req, _Req, State) ->
     {server_message(build_forecasts_message(Forecasts)), State};
 
 handle_request(joke_req, _Req, State) ->
-    {server_message(build_joke_message(jokes:of_today())), State}.
+    {server_message(build_joke_message(jokes:of_today())), State};
+
+handle_request(operator_req, _Req, State) ->
+    {ok, Pid} = operator:start(),
+    erlang:monitor(process, Pid),
+    NewState = State#state{operator = Pid},
+    {server_message("[server] You are now connected to an operator.~n"), NewState};
+
+handle_request(operator_msg_req, _Req, #state{operator = undefined} = State) ->
+    {server_message("You aren't connected to an operator.~n"), State};
+
+handle_request(operator_msg_req, #req{
+    operator_msg_data = #operator_message {
+        message = Message
+    }
+}, #state{operator = Pid} = State) when Pid =/= undefined ->
+    Answer = operator:ask(Pid, Message),
+    {server_message(build_operator_message(Answer)), State}.
+
+handle_operator_disconnect(State = #state{}) ->
+    send(server_message("[server] Your operator left the call.~n"), State),
+    NewState = State#state{operator=undefined},
+    NewState.
+
+build_operator_message(Answer) ->
+    io_lib:format("[Operator]: ~p~n", [Answer]).
 
 build_forecasts_message(Forecasts) ->
     build_forecasts_message(Forecasts, "Weather forecasts:~n").
