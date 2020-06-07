@@ -12,6 +12,7 @@ The services offered by the call center are:
 | -- | ----              | -----------                                      |
 | 1  | Weather forecasts | Replies telling what's the weather like tomorrow |
 | 2  | Jokes of the day  | Replies with a different joke everyday           |
+| 3  | Call ID           | Replies with the unique ID of the current call   |
 | 3  | Ask an operator   | Starts a conversation to an operator             |
 
 When the call is started from the user, the responder lists all the services
@@ -29,16 +30,20 @@ each of them.
 Inside the module are also present the actual handlers based on the protobuf
 message type. Handlers build responses gathering data from other services.
 
+Each connection has a `state` attached, containing informations about the
+current *call*: username of the user, UID of the call, TCP socket, ....
+
 
 ### Weather service
 
 Weather service (`weather` module) provides a simple API to get forecasts for
-tomorrow's weather.
+this week weather.
 
 
 ### Client
 
-Client is still a work in progress.
+`client` module expose a `client:run()` function that starts the main client
+loop. It's meant to be a *frontend* for the underlying `sockclient` library.
 
 
 ### Operators
@@ -47,6 +52,8 @@ The *operator* for this exercise is simulated by an echo server.
 
 The echo server replies to a maximum number of messages from the user (default:
 3) and for a limited amount of time (default: 10 seconds).
+
+An operator is an Erlang process.
 
 
 # Run
@@ -60,11 +67,10 @@ $ rebar3 shell
 This will take care of fetching dependencies, compiling, booting services, and
 finally starting an Erlang shell.
 
-While in the shell, `sockclient` module can be used. For example:
+While in the shell, `client` module can be used:
 
 ```
-> sockclient:connect().
-> sockclient:send_create_session().
+> client:run().
 ```
 
 ---
