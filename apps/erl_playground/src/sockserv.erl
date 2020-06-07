@@ -106,14 +106,16 @@ handle_info({tcp, _Port, <<>>}, State) ->
     _ = lager:notice("empty handle_info state: ~p", [State]),
     {noreply, State};
 handle_info({tcp, _Port, Packet}, State = #state{socket = Socket}) ->
-    Req = utils:open_envelope(Packet),
-
-    NewState = process_packet(Req, State, utils:unix_timestamp()),
+    self() ! {packet, Packet},
     ok = inet:setopts(Socket, [{active, once}]),
-
-    {noreply, NewState};
+    {noreply, State};
 handle_info({tcp_closed, _Port}, State) ->
     {stop, normal, State};
+
+handle_info({packet, Packet}, State) ->
+    Req = utils:open_envelope(Packet),
+    NewState = process_packet(Req, State, utils:unix_timestamp()),
+    {noreply, NewState};
 
 handle_info({'DOWN', _, process, Operator, normal}, #state{operator = Operator} = State) ->
     {noreply, handle_operator_disconnect(State)};
