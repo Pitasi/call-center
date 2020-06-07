@@ -172,12 +172,17 @@ handle_request(create_session, #req{
         username = UserName
     }
 }, State) ->
-    lager:info("create_session received from ~p", [UserName]),
     NewState = State#state{username=UserName},
-    {server_message("OK"), NewState};
+    {server_message(io_lib:format("Welcome ~s!~n", [UserName])), NewState};
 
 handle_request(call_id_req, _Req, #state{uid = UID} = State) ->
-    {server_message(io_lib:format("Your call ID is ~s~n", [UID])), State};
+    {server_message(
+        io_lib:format("-----------~n"
+                      "| Call ID |~n"
+                      "-----------~n"
+                      "~s~n", [UID])
+      ), State};
+
 
 handle_request(weather_req, _Req, State) ->
     Timedates = [date:add_days(X) || X <- lists:seq(0, 6)],
@@ -199,10 +204,10 @@ handle_request(operator_quit_req, _Req, #state{operator = undefined} = State) ->
 handle_request(operator_quit_req, _Req, #state{operator = Pid} = State)
   when Pid =/= undefined ->
     operator:shutdown(Pid),
-    {server_message("[server] Bye!"), State};
+    {server_message("[server] Bye!~n"), State};
 
 handle_request(operator_msg_req, _Req, #state{operator = undefined} = State) ->
-    {server_message("You aren't connected to an operator.~n"), State};
+    {server_message("[server] You aren't connected to an operator.~n"), State};
 
 handle_request(operator_msg_req, #req{
     operator_msg_data = #operator_message {
@@ -221,9 +226,11 @@ build_operator_message(Answer) ->
     io_lib:format("[Operator]: ~p~n", [Answer]).
 
 build_forecasts_message(Forecasts) ->
-    build_forecasts_message(Forecasts, "Weather forecasts:~n").
+    build_forecasts_message(Forecasts, "---------------------~n"
+                                       "| Weather forecasts |~n"
+                                       "---------------------~n").
 
-build_forecasts_message([], Msg) -> Msg;
+build_forecasts_message([], Msg) -> Msg ++ "~n";
 build_forecasts_message([{{Y, M, D}, Weather}|Tl], Msg) ->
     build_forecasts_message(
       Tl,
@@ -231,4 +238,7 @@ build_forecasts_message([{{Y, M, D}, Weather}|Tl], Msg) ->
     ).
 
 build_joke_message(Joke) ->
-    io_lib:format("Your joke of today: ~s~n", [Joke]).
+    io_lib:format("-----------------~n"
+                  "| Joke of today |~n"
+                  "-----------------~n"
+                  "~s~n", [Joke]).

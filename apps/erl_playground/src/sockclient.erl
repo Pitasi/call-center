@@ -8,7 +8,7 @@
 %% ------------------------------------------------------------------
 
 -export([start_link/0]). -ignore_xref([{start_link, 4}]).
--export([connect/0, disconnect/0]).
+-export([connect/1, disconnect/0]).
 -export([send_create_session/1, send_weather_req/0, send_call_id_req/0, send_joke_req/0, send_operator_req/0, send_operator_quit_req/0, send_operator_msg_req/1]).
 
 %% ------------------------------------------------------------------
@@ -23,7 +23,8 @@
 %% ------------------------------------------------------------------
 
 -record(state, {
-    socket :: any()
+    socket :: any(),
+    ref = undefined
 }).
 -type state() :: #state{}.
 
@@ -41,9 +42,9 @@
 start_link() ->
     {ok, _} = gen_server:start_link({local, ?SERVER}, ?CB_MODULE, [], []).
 
--spec connect() -> ok.
-connect() ->
-    gen_server:call(whereis(?SERVER), connect),
+-spec connect(_Ref) -> ok.
+connect(Ref) ->
+    gen_server:call(whereis(?SERVER), {connect, Ref}),
     ok.
 
 -spec disconnect() -> ok.
@@ -133,13 +134,13 @@ handle_info(Message, State) ->
     _ = lager:warning("No handle_info for~p", [Message]),
     {noreply, State}.
 
-handle_call(connect, _From, State) ->
+handle_call({connect, Ref}, _From, State) ->
     {ok, Host} = application:get_env(erl_playground, tcp_host),
     {ok, Port} = application:get_env(erl_playground, tcp_port),
 
     {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, 2}]),
 
-    {reply, normal, State#state{socket = Socket}};
+    {reply, normal, State#state{socket = Socket, ref = Ref}};
 handle_call(disconnect, _From, #state{socket = Socket} = State)
     when Socket =/= undefined ->
 
@@ -169,12 +170,12 @@ send(Req, Socket) ->
 process_packet(undefined, State, _Now) ->
     lager:notice("server sent invalid packet, ignoring"),
     State;
-process_packet(#req{ type = Type } = Req, State, _Now)
+process_packet(#req{ type = Type } = Req, #state{ref = Ref} = State, _Now)
     when Type =:= server_message ->
     #req{
         server_message_data = #server_message{
             message = Message
         }
     } = Req,
-        io:format(Message),
+    Ref ! Message,
     State.
