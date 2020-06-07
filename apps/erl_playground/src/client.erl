@@ -17,7 +17,8 @@ run() ->
 
 init() ->
     sockclient:connect(),
-    banner().
+    banner(),
+    pick_username().
 
 loop(Services) ->
     help(Services),
@@ -25,6 +26,16 @@ loop(Services) ->
 
 banner() ->
     io:format("[ Call Center v1.0 ]~n").
+
+pick_username() ->
+    Username = ask_username(),
+    sockclient:send_create_session(Username).
+
+ask_username() ->
+    case io:fread("Please insert your username: ", "~s") of
+        {ok, [Username]} -> Username;
+        _ -> io:format("Invalid username.~n"), ask_username()
+    end.
 
 help(Services) ->
     io:format(build_help_message(Services)),
