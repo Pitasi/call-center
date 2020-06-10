@@ -28,17 +28,11 @@
 %% Record Definitions
 %% ------------------------------------------------------------------
 
--record(operator, {
-    pid,
-    timer=undefined,
-    monitor=undefined,
-    remaining=0
- }).
 -record(state, {
     socket :: any(), %ranch_transport:socket(),
     transport,
     uid,
-    operator :: #operator{},
+    operator,
     username=""
 }).
 -type state() :: #state{}.
@@ -123,15 +117,10 @@ handle_info({packet, Packet}, State) ->
     NewState = process_packet(Req, State, utils:unix_timestamp()),
     {noreply, NewState};
 
-handle_info(operator_timeout, #state{operator = #operator{pid=Operator}} = State) ->
-    operator_cleanup(Operator),
+handle_info({operator_removed, Ref}, #state{operator = Ref} = State) ->
+	send(server_message("[server] Your operator left the chat.~n"), State),
     NewState = State#state{operator = undefined},
-    {noreply, NewState};
-
-handle_info({'DOWN', _, process, Operator, normal}, #state{operator = #operator{pid=Operator}} = State) ->
-    operator_cleanup(Operator),
-    NewState = State#state{operator = undefined},
-    {noreply, NewState};
+	{noreply, NewState};
 
 handle_info(Message, State) ->
     _ = lager:notice("unknown handle_info ~p -- ~p", [Message, State]),
@@ -208,29 +197,20 @@ handle_request(joke_req, _Req, State) ->
     {server_message(build_joke_message(jokes:of_today())), State};
 
 handle_request(operator_req, _Req, State) ->
-    Timeout = application:get_env(erl_playground, operator_timeout, 10000),
-    MaxReq = application:get_env(erl_playground, operator_max_requests, 3),
-    case operator_pool:take(5000) of %% TODO: make 5000 an app config
-        {ok, Pid} ->
-            Monitor = erlang:monitor(process, Pid),
-            Timer = erlang:send_after(Timeout, self(), operator_timeout),
-            NewState = State#state{operator = #operator{
-                pid = Pid,
-                remaining = MaxReq,
-                timer = Timer,
-                monitor = Monitor
-            }},
+	case operator_manager:take() of
+        {ok, Ref} ->
+            NewState = State#state{operator = Ref},
             {server_message("[server] You are now connected to an operator.~n"), NewState};
         {error, _} ->
             {server_message("[server] No available operators at this time. Try again later~n"), State}
     end;
 
 handle_request(operator_quit_req, _Req, #state{operator = undefined} = State) ->
-    {noreply, State};
+    {server_message("[server] Bye!~n"), State};
 
 handle_request(operator_quit_req, _Req, #state{operator = Operator} = State)
   when Operator =/= undefined ->
-    operator_cleanup(Operator),
+	operator_manager:put(Operator),
     NewState = State#state{operator = undefined},
     {server_message("[server] Bye!~n"), NewState};
 
@@ -241,9 +221,14 @@ handle_request(operator_msg_req, #req{
     operator_msg_data = #operator_message {
         message = Message
     }
-}, #state{operator = Pid} = State) when Pid =/= undefined ->
-    Answer = operator:ask(Pid, Message),
-    {server_message(build_operator_message(Answer)), State}.
+}, #state{operator = Operator} = State) ->
+    case operator_manager:ask(Operator, Message) of
+		{ok, Answer} ->
+			{server_message(build_operator_message(Answer)), State};
+		{error, _} ->
+			NewState = State#state{operator = undefined},
+			{server_message("[server] You can't ask more questions.~n"), NewState}
+	end.
 
 build_operator_message(Answer) ->
     io_lib:format("[Operator]: ~p~n", [Answer]).
@@ -265,14 +250,3 @@ build_joke_message(Joke) ->
                   "| Joke of today |~n"
                   "-----------------~n"
                   "~s~n", [Joke]).
-
-operator_cleanup(#operator{monitor = Monitor, timer = Timer}) ->
-    case Timer of
-        undefined -> ok;
-        _ -> erlang:cancel_timer(Timer)
-    end,
-    case Monitor of
-        undefined -> ok;
-        _ -> erlang:demonitor(Monitor)
-    end.
-

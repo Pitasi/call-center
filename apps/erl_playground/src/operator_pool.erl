@@ -3,7 +3,7 @@
 -export([start/0, init/1, take/1, put/1]).
 
 -define(POOL_NAME, operators).
--define(POOL_SIZE, 3). %% TODO: read this from application config
+-define(POOL_SIZE, application:get_env(erl_playground, operator_pool_size, 2)).
 -define(OPERATOR_MODULE, operator).
 
 %% start/0 starts the operators pool.
@@ -28,7 +28,7 @@ init([]) ->
 %% timeout expired).
 take(Timeout) ->
     try poolboy:checkout(?POOL_NAME, true, Timeout) of
-        Pid -> Pid
+        Pid -> {ok, Pid}
     catch
         exit:_ -> {error, no_operators_available}
     end.

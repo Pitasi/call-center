@@ -27,7 +27,7 @@ handle_call(terminate, _From, State) ->
 
 handle_call({ask, Question}, _From, State) ->
     Answer = process_question(Question),
-    {reply, Answer, State}.
+    {reply, {ok, Answer}, State}.
 
 handle_cast(Msg, State) ->
     io:format("Unexpected cast: ~p~n",[Msg]),
