@@ -13,15 +13,14 @@ services() ->
     ].
 
 run() ->
-    init(),
+	Flusher = spawn(fun flush/0),
+    sockclient:connect(Flusher),
+    banner(),
+    pick_username(),
     loop(services()).
 
-init() ->
-    sockclient:connect(self()),
-    banner(),
-    pick_username().
-
 loop(Services) ->
+	timer:sleep(100),  %% TODO: find a better way to ensure server messages were flushed
     case main_menu(Services) of
         quit -> ok;
         _ -> loop(Services)
@@ -32,8 +31,7 @@ banner() ->
 
 pick_username() ->
     Username = ask("Please insert your username: "),
-    sockclient:send_create_session(Username),
-    flush().
+    sockclient:send_create_session(Username).
 
 main_menu(Services) ->
     io:format("~n"
@@ -58,20 +56,16 @@ help_ask(NOptions) ->
     end.
 
 handle_weather() ->
-    sockclient:send_weather_req(),
-    flush().
+    sockclient:send_weather_req().
 
 handle_joke() ->
-    sockclient:send_joke_req(),
-    flush().
+    sockclient:send_joke_req().
 
 handle_caller_id() ->
-    sockclient:send_call_id_req(),
-    flush().
+    sockclient:send_call_id_req().
 
 handle_ask_operator() ->
     sockclient:send_operator_req(),
-    flush(),
     io:format("Write 'bye' to quit chat.~n"),
     operator_chat_loop().
 
@@ -79,11 +73,9 @@ operator_chat_loop() ->
     case ask("> ") of
         "bye" ->
             sockclient:send_operator_quit_req(),
-            flush(),
             ok;
         Msg ->
             sockclient:send_operator_msg_req(Msg),
-            flush(),
             operator_chat_loop()
     end.
 
@@ -106,7 +98,5 @@ flush() ->
     receive
         Message ->
             io:format(Message),
-            flush()
-    after 100 ->
-        ok
+			flush()
     end.
