@@ -73,6 +73,7 @@ boot(client_server) ->
     boot(only_client),
     ok;
 boot(only_server) ->
+    operator_pool:start(),
     sockserv:start(),
     weather:start(),
     jokes:start(),

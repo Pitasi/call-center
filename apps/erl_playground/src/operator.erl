@@ -1,7 +1,8 @@
 -module(operator).
 -behaviour(gen_server).
+-behaviour(poolboy_worker).
 
--export([start/2, start_link/2]).
+-export([start/1, start_link/1]).
 -export([ask/2, shutdown/1]).
 
 %% gen_server
@@ -10,8 +11,8 @@
 
 -define(SERVER, ?MODULE).
 
-start(Timeout, MaxReq) -> gen_server:start(?MODULE, {Timeout, MaxReq}, []).
-start_link(Timeout, MaxReq) -> gen_server:start_link(?MODULE, {Timeout, MaxReq}, []).
+start(_Args) -> gen_server:start(?MODULE, [], []).
+start_link(_Args) -> gen_server:start_link(?MODULE, [], []).
 shutdown(Pid) -> gen_server:call(Pid, terminate).
 
 ask(Pid, Question) -> gen_server:call(Pid, {ask, Question}).
@@ -19,33 +20,18 @@ ask(Pid, Question) -> gen_server:call(Pid, {ask, Question}).
 
 %% Server functions
 
-init({Timeout, MaxReq}) when MaxReq > 0 ->
-    init_timeout(Timeout),
-    {ok, MaxReq}.
-
-init_timeout(Timeout) ->
-    case Timeout of
-        infinity -> ok;
-        _ -> erlang:send_after(Timeout, self(), timeout)
-    end.
+init([]) -> {ok, []}.
 
 handle_call(terminate, _From, State) ->
     {stop, normal, ok, State};
 
-handle_call({ask, Question}, _From, RemainingQuestions) when RemainingQuestions > 0 ->
-    Rem = RemainingQuestions - 1,
+handle_call({ask, Question}, _From, State) ->
     Answer = process_question(Question),
-    case Rem of
-        0 -> {stop, normal, Answer, Rem};
-        _ -> {reply, Answer, Rem}
-    end.
+    {reply, Answer, State}.
 
 handle_cast(Msg, State) ->
     io:format("Unexpected cast: ~p~n",[Msg]),
     {noreply, State}.
-
-handle_info(timeout, State) ->
-    {stop, normal, State};
 
 handle_info(Msg, State) ->
     io:format("Unexpected message: ~p~n",[Msg]),

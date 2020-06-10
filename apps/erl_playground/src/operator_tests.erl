@@ -12,7 +12,7 @@ operator_test_() ->
 
 start() ->
     %% spawn an operator that doesn't "expire"
-    {ok, Pid} = operator:start_link(infinity, 99999),
+    {ok, Pid} = operator:start_link({infinity, 99999}),
     Pid.
 
 stop(Pid) -> operator:shutdown(Pid).
@@ -32,7 +32,7 @@ ask(Pid) ->
 
 
 operator_timeout_test() ->
-    {ok, Pid} = operator:start(10, 99999),
+    {ok, Pid} = operator:start({10, 99999}),
     Ref = erlang:monitor(process, Pid),
     Result = receive
         {'DOWN', Ref, _, Pid, _} -> ok
@@ -42,7 +42,7 @@ operator_timeout_test() ->
 
 operator_max_req_test() ->
     MaxReq = 10,
-    {ok, Pid} = operator:start(infinity, MaxReq),
+    {ok, Pid} = operator:start({infinity, MaxReq}),
     Ref = erlang:monitor(process, Pid),
     [operator:ask(Pid, "question") || _ <- lists:seq(1, MaxReq)],
     Result = receive
