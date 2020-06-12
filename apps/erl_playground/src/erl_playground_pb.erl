@@ -49,7 +49,7 @@
 -include("gpb.hrl").
 
 %% enumerated types
--type 'req.type_enum'() :: create_session | server_message | weather_req | call_id_req | joke_req | operator_req | operator_msg_req | operator_quit_req.
+-type 'req.type_enum'() :: create_session | server_message | weather_req | call_id_req | joke_req | operator_req | operator_msg_req | operator_quit_req | chat_req | chat_msg_req | chat_quit_req.
 -export_type(['req.type_enum'/0]).
 
 %% message types
@@ -59,24 +59,26 @@
 
 -type operator_message() :: #operator_message{}.
 
+-type chat_message() :: #chat_message{}.
+
 -type req() :: #req{}.
 
 -type envelope() :: #envelope{}.
 
--export_type(['create_session'/0, 'server_message'/0, 'operator_message'/0, 'req'/0, 'envelope'/0]).
+-export_type(['create_session'/0, 'server_message'/0, 'operator_message'/0, 'chat_message'/0, 'req'/0, 'envelope'/0]).
 
--spec encode_msg(#create_session{} | #server_message{} | #operator_message{} | #req{} | #envelope{}) -> binary().
+-spec encode_msg(#create_session{} | #server_message{} | #operator_message{} | #chat_message{} | #req{} | #envelope{}) -> binary().
 encode_msg(Msg) when tuple_size(Msg) >= 1 ->
     encode_msg(Msg, element(1, Msg), []).
 
--spec encode_msg(#create_session{} | #server_message{} | #operator_message{} | #req{} | #envelope{}, atom() | list()) -> binary().
+-spec encode_msg(#create_session{} | #server_message{} | #operator_message{} | #chat_message{} | #req{} | #envelope{}, atom() | list()) -> binary().
 encode_msg(Msg, MsgName) when is_atom(MsgName) ->
     encode_msg(Msg, MsgName, []);
 encode_msg(Msg, Opts)
     when tuple_size(Msg) >= 1, is_list(Opts) ->
     encode_msg(Msg, element(1, Msg), Opts).
 
--spec encode_msg(#create_session{} | #server_message{} | #operator_message{} | #req{} | #envelope{}, atom(), list()) -> binary().
+-spec encode_msg(#create_session{} | #server_message{} | #operator_message{} | #chat_message{} | #req{} | #envelope{}, atom(), list()) -> binary().
 encode_msg(Msg, MsgName, Opts) ->
     verify_msg(Msg, MsgName, Opts),
     TrUserData = proplists:get_value(user_data, Opts),
@@ -90,6 +92,9 @@ encode_msg(Msg, MsgName, Opts) ->
       operator_message ->
 	  encode_msg_operator_message(id(Msg, TrUserData),
 				      TrUserData);
+      chat_message ->
+	  encode_msg_chat_message(id(Msg, TrUserData),
+				  TrUserData);
       req -> encode_msg_req(id(Msg, TrUserData), TrUserData);
       envelope ->
 	  encode_msg_envelope(id(Msg, TrUserData), TrUserData)
@@ -131,12 +136,24 @@ encode_msg_operator_message(#operator_message{message =
       e_type_string(TrF1, <<Bin/binary, 10>>, TrUserData)
     end.
 
+encode_msg_chat_message(Msg, TrUserData) ->
+    encode_msg_chat_message(Msg, <<>>, TrUserData).
+
+
+encode_msg_chat_message(#chat_message{message = F1},
+			Bin, TrUserData) ->
+    begin
+      TrF1 = id(F1, TrUserData),
+      e_type_string(TrF1, <<Bin/binary, 10>>, TrUserData)
+    end.
+
 encode_msg_req(Msg, TrUserData) ->
     encode_msg_req(Msg, <<>>, TrUserData).
 
 
 encode_msg_req(#req{type = F1, create_session_data = F2,
-		    server_message_data = F3, operator_msg_data = F4},
+		    server_message_data = F3, operator_msg_data = F4,
+		    chat_msg_data = F5},
 	       Bin, TrUserData) ->
     B1 = begin
 	   TrF1 = id(F1, TrUserData),
@@ -161,12 +178,20 @@ encode_msg_req(#req{type = F1, create_session_data = F2,
 						   TrUserData)
 		end
 	 end,
-    if F4 == undefined -> B3;
+    B4 = if F4 == undefined -> B3;
+	    true ->
+		begin
+		  TrF4 = id(F4, TrUserData),
+		  e_mfield_req_operator_msg_data(TrF4, <<B3/binary, 34>>,
+						 TrUserData)
+		end
+	 end,
+    if F5 == undefined -> B4;
        true ->
 	   begin
-	     TrF4 = id(F4, TrUserData),
-	     e_mfield_req_operator_msg_data(TrF4, <<B3/binary, 34>>,
-					    TrUserData)
+	     TrF5 = id(F5, TrUserData),
+	     e_mfield_req_chat_msg_data(TrF5, <<B4/binary, 42>>,
+					TrUserData)
 	   end
     end.
 
@@ -202,6 +227,11 @@ e_mfield_req_operator_msg_data(Msg, Bin, TrUserData) ->
     Bin2 = e_varint(byte_size(SubBin), Bin),
     <<Bin2/binary, SubBin/binary>>.
 
+e_mfield_req_chat_msg_data(Msg, Bin, TrUserData) ->
+    SubBin = encode_msg_chat_message(Msg, <<>>, TrUserData),
+    Bin2 = e_varint(byte_size(SubBin), Bin),
+    <<Bin2/binary, SubBin/binary>>.
+
 e_mfield_envelope_uncompressed_data(Msg, Bin,
 				    TrUserData) ->
     SubBin = encode_msg_req(Msg, <<>>, TrUserData),
@@ -229,6 +259,14 @@ e_mfield_envelope_uncompressed_data(Msg, Bin,
 'e_enum_req.type_enum'(operator_quit_req, Bin,
 		       _TrUserData) ->
     <<Bin/binary, 8>>;
+'e_enum_req.type_enum'(chat_req, Bin, _TrUserData) ->
+    <<Bin/binary, 9>>;
+'e_enum_req.type_enum'(chat_msg_req, Bin,
+		       _TrUserData) ->
+    <<Bin/binary, 10>>;
+'e_enum_req.type_enum'(chat_quit_req, Bin,
+		       _TrUserData) ->
+    <<Bin/binary, 11>>;
 'e_enum_req.type_enum'(V, Bin, _TrUserData) ->
     e_varint(V, Bin).
 
@@ -354,6 +392,9 @@ decode_msg_2_doit(server_message, Bin, TrUserData) ->
        TrUserData);
 decode_msg_2_doit(operator_message, Bin, TrUserData) ->
     id(decode_msg_operator_message(Bin, TrUserData),
+       TrUserData);
+decode_msg_2_doit(chat_message, Bin, TrUserData) ->
+    id(decode_msg_chat_message(Bin, TrUserData),
        TrUserData);
 decode_msg_2_doit(req, Bin, TrUserData) ->
     id(decode_msg_req(Bin, TrUserData), TrUserData);
@@ -681,89 +722,198 @@ skip_64_operator_message(<<_:64, Rest/binary>>, Z1, Z2,
     dfp_read_field_def_operator_message(Rest, Z1, Z2, F@_1,
 					TrUserData).
 
+decode_msg_chat_message(Bin, TrUserData) ->
+    dfp_read_field_def_chat_message(Bin, 0, 0,
+				    id(undefined, TrUserData), TrUserData).
+
+dfp_read_field_def_chat_message(<<10, Rest/binary>>, Z1,
+				Z2, F@_1, TrUserData) ->
+    d_field_chat_message_message(Rest, Z1, Z2, F@_1,
+				 TrUserData);
+dfp_read_field_def_chat_message(<<>>, 0, 0, F@_1, _) ->
+    #chat_message{message = F@_1};
+dfp_read_field_def_chat_message(Other, Z1, Z2, F@_1,
+				TrUserData) ->
+    dg_read_field_def_chat_message(Other, Z1, Z2, F@_1,
+				   TrUserData).
+
+dg_read_field_def_chat_message(<<1:1, X:7,
+				 Rest/binary>>,
+			       N, Acc, F@_1, TrUserData)
+    when N < 32 - 7 ->
+    dg_read_field_def_chat_message(Rest, N + 7,
+				   X bsl N + Acc, F@_1, TrUserData);
+dg_read_field_def_chat_message(<<0:1, X:7,
+				 Rest/binary>>,
+			       N, Acc, F@_1, TrUserData) ->
+    Key = X bsl N + Acc,
+    case Key of
+      10 ->
+	  d_field_chat_message_message(Rest, 0, 0, F@_1,
+				       TrUserData);
+      _ ->
+	  case Key band 7 of
+	    0 ->
+		skip_varint_chat_message(Rest, 0, 0, F@_1, TrUserData);
+	    1 -> skip_64_chat_message(Rest, 0, 0, F@_1, TrUserData);
+	    2 ->
+		skip_length_delimited_chat_message(Rest, 0, 0, F@_1,
+						   TrUserData);
+	    3 ->
+		skip_group_chat_message(Rest, Key bsr 3, 0, F@_1,
+					TrUserData);
+	    5 -> skip_32_chat_message(Rest, 0, 0, F@_1, TrUserData)
+	  end
+    end;
+dg_read_field_def_chat_message(<<>>, 0, 0, F@_1, _) ->
+    #chat_message{message = F@_1}.
+
+d_field_chat_message_message(<<1:1, X:7, Rest/binary>>,
+			     N, Acc, F@_1, TrUserData)
+    when N < 57 ->
+    d_field_chat_message_message(Rest, N + 7, X bsl N + Acc,
+				 F@_1, TrUserData);
+d_field_chat_message_message(<<0:1, X:7, Rest/binary>>,
+			     N, Acc, _, TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bytes:Len/binary, Rest2/binary>> = Rest,
+			   {id(binary:copy(Bytes), TrUserData), Rest2}
+			 end,
+    dfp_read_field_def_chat_message(RestF, 0, 0, NewFValue,
+				    TrUserData).
+
+skip_varint_chat_message(<<1:1, _:7, Rest/binary>>, Z1,
+			 Z2, F@_1, TrUserData) ->
+    skip_varint_chat_message(Rest, Z1, Z2, F@_1,
+			     TrUserData);
+skip_varint_chat_message(<<0:1, _:7, Rest/binary>>, Z1,
+			 Z2, F@_1, TrUserData) ->
+    dfp_read_field_def_chat_message(Rest, Z1, Z2, F@_1,
+				    TrUserData).
+
+skip_length_delimited_chat_message(<<1:1, X:7,
+				     Rest/binary>>,
+				   N, Acc, F@_1, TrUserData)
+    when N < 57 ->
+    skip_length_delimited_chat_message(Rest, N + 7,
+				       X bsl N + Acc, F@_1, TrUserData);
+skip_length_delimited_chat_message(<<0:1, X:7,
+				     Rest/binary>>,
+				   N, Acc, F@_1, TrUserData) ->
+    Length = X bsl N + Acc,
+    <<_:Length/binary, Rest2/binary>> = Rest,
+    dfp_read_field_def_chat_message(Rest2, 0, 0, F@_1,
+				    TrUserData).
+
+skip_group_chat_message(Bin, FNum, Z2, F@_1,
+			TrUserData) ->
+    {_, Rest} = read_group(Bin, FNum),
+    dfp_read_field_def_chat_message(Rest, 0, Z2, F@_1,
+				    TrUserData).
+
+skip_32_chat_message(<<_:32, Rest/binary>>, Z1, Z2,
+		     F@_1, TrUserData) ->
+    dfp_read_field_def_chat_message(Rest, Z1, Z2, F@_1,
+				    TrUserData).
+
+skip_64_chat_message(<<_:64, Rest/binary>>, Z1, Z2,
+		     F@_1, TrUserData) ->
+    dfp_read_field_def_chat_message(Rest, Z1, Z2, F@_1,
+				    TrUserData).
+
 decode_msg_req(Bin, TrUserData) ->
     dfp_read_field_def_req(Bin, 0, 0,
 			   id(undefined, TrUserData), id(undefined, TrUserData),
 			   id(undefined, TrUserData), id(undefined, TrUserData),
-			   TrUserData).
+			   id(undefined, TrUserData), TrUserData).
 
 dfp_read_field_def_req(<<8, Rest/binary>>, Z1, Z2, F@_1,
-		       F@_2, F@_3, F@_4, TrUserData) ->
+		       F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     d_field_req_type(Rest, Z1, Z2, F@_1, F@_2, F@_3, F@_4,
-		     TrUserData);
+		     F@_5, TrUserData);
 dfp_read_field_def_req(<<18, Rest/binary>>, Z1, Z2,
-		       F@_1, F@_2, F@_3, F@_4, TrUserData) ->
+		       F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     d_field_req_create_session_data(Rest, Z1, Z2, F@_1,
-				    F@_2, F@_3, F@_4, TrUserData);
+				    F@_2, F@_3, F@_4, F@_5, TrUserData);
 dfp_read_field_def_req(<<26, Rest/binary>>, Z1, Z2,
-		       F@_1, F@_2, F@_3, F@_4, TrUserData) ->
+		       F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     d_field_req_server_message_data(Rest, Z1, Z2, F@_1,
-				    F@_2, F@_3, F@_4, TrUserData);
+				    F@_2, F@_3, F@_4, F@_5, TrUserData);
 dfp_read_field_def_req(<<34, Rest/binary>>, Z1, Z2,
-		       F@_1, F@_2, F@_3, F@_4, TrUserData) ->
+		       F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     d_field_req_operator_msg_data(Rest, Z1, Z2, F@_1, F@_2,
-				  F@_3, F@_4, TrUserData);
+				  F@_3, F@_4, F@_5, TrUserData);
+dfp_read_field_def_req(<<42, Rest/binary>>, Z1, Z2,
+		       F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
+    d_field_req_chat_msg_data(Rest, Z1, Z2, F@_1, F@_2,
+			      F@_3, F@_4, F@_5, TrUserData);
 dfp_read_field_def_req(<<>>, 0, 0, F@_1, F@_2, F@_3,
-		       F@_4, _) ->
+		       F@_4, F@_5, _) ->
     #req{type = F@_1, create_session_data = F@_2,
-	 server_message_data = F@_3, operator_msg_data = F@_4};
+	 server_message_data = F@_3, operator_msg_data = F@_4,
+	 chat_msg_data = F@_5};
 dfp_read_field_def_req(Other, Z1, Z2, F@_1, F@_2, F@_3,
-		       F@_4, TrUserData) ->
+		       F@_4, F@_5, TrUserData) ->
     dg_read_field_def_req(Other, Z1, Z2, F@_1, F@_2, F@_3,
-			  F@_4, TrUserData).
+			  F@_4, F@_5, TrUserData).
 
 dg_read_field_def_req(<<1:1, X:7, Rest/binary>>, N, Acc,
-		      F@_1, F@_2, F@_3, F@_4, TrUserData)
+		      F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData)
     when N < 32 - 7 ->
     dg_read_field_def_req(Rest, N + 7, X bsl N + Acc, F@_1,
-			  F@_2, F@_3, F@_4, TrUserData);
+			  F@_2, F@_3, F@_4, F@_5, TrUserData);
 dg_read_field_def_req(<<0:1, X:7, Rest/binary>>, N, Acc,
-		      F@_1, F@_2, F@_3, F@_4, TrUserData) ->
+		      F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     Key = X bsl N + Acc,
     case Key of
       8 ->
 	  d_field_req_type(Rest, 0, 0, F@_1, F@_2, F@_3, F@_4,
-			   TrUserData);
+			   F@_5, TrUserData);
       18 ->
 	  d_field_req_create_session_data(Rest, 0, 0, F@_1, F@_2,
-					  F@_3, F@_4, TrUserData);
+					  F@_3, F@_4, F@_5, TrUserData);
       26 ->
 	  d_field_req_server_message_data(Rest, 0, 0, F@_1, F@_2,
-					  F@_3, F@_4, TrUserData);
+					  F@_3, F@_4, F@_5, TrUserData);
       34 ->
 	  d_field_req_operator_msg_data(Rest, 0, 0, F@_1, F@_2,
-					F@_3, F@_4, TrUserData);
+					F@_3, F@_4, F@_5, TrUserData);
+      42 ->
+	  d_field_req_chat_msg_data(Rest, 0, 0, F@_1, F@_2, F@_3,
+				    F@_4, F@_5, TrUserData);
       _ ->
 	  case Key band 7 of
 	    0 ->
 		skip_varint_req(Rest, 0, 0, F@_1, F@_2, F@_3, F@_4,
-				TrUserData);
+				F@_5, TrUserData);
 	    1 ->
-		skip_64_req(Rest, 0, 0, F@_1, F@_2, F@_3, F@_4,
+		skip_64_req(Rest, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5,
 			    TrUserData);
 	    2 ->
 		skip_length_delimited_req(Rest, 0, 0, F@_1, F@_2, F@_3,
-					  F@_4, TrUserData);
+					  F@_4, F@_5, TrUserData);
 	    3 ->
 		skip_group_req(Rest, Key bsr 3, 0, F@_1, F@_2, F@_3,
-			       F@_4, TrUserData);
+			       F@_4, F@_5, TrUserData);
 	    5 ->
-		skip_32_req(Rest, 0, 0, F@_1, F@_2, F@_3, F@_4,
+		skip_32_req(Rest, 0, 0, F@_1, F@_2, F@_3, F@_4, F@_5,
 			    TrUserData)
 	  end
     end;
 dg_read_field_def_req(<<>>, 0, 0, F@_1, F@_2, F@_3,
-		      F@_4, _) ->
+		      F@_4, F@_5, _) ->
     #req{type = F@_1, create_session_data = F@_2,
-	 server_message_data = F@_3, operator_msg_data = F@_4}.
+	 server_message_data = F@_3, operator_msg_data = F@_4,
+	 chat_msg_data = F@_5}.
 
 d_field_req_type(<<1:1, X:7, Rest/binary>>, N, Acc,
-		 F@_1, F@_2, F@_3, F@_4, TrUserData)
+		 F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData)
     when N < 57 ->
     d_field_req_type(Rest, N + 7, X bsl N + Acc, F@_1, F@_2,
-		     F@_3, F@_4, TrUserData);
+		     F@_3, F@_4, F@_5, TrUserData);
 d_field_req_type(<<0:1, X:7, Rest/binary>>, N, Acc, _,
-		 F@_2, F@_3, F@_4, TrUserData) ->
+		 F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     {NewFValue, RestF} = {id('d_enum_req.type_enum'(begin
 						      <<Res:32/signed-native>> =
 							  <<(X bsl N +
@@ -773,18 +923,20 @@ d_field_req_type(<<0:1, X:7, Rest/binary>>, N, Acc, _,
 			     TrUserData),
 			  Rest},
     dfp_read_field_def_req(RestF, 0, 0, NewFValue, F@_2,
-			   F@_3, F@_4, TrUserData).
+			   F@_3, F@_4, F@_5, TrUserData).
 
 d_field_req_create_session_data(<<1:1, X:7,
 				  Rest/binary>>,
-				N, Acc, F@_1, F@_2, F@_3, F@_4, TrUserData)
+				N, Acc, F@_1, F@_2, F@_3, F@_4, F@_5,
+				TrUserData)
     when N < 57 ->
     d_field_req_create_session_data(Rest, N + 7,
-				    X bsl N + Acc, F@_1, F@_2, F@_3, F@_4,
+				    X bsl N + Acc, F@_1, F@_2, F@_3, F@_4, F@_5,
 				    TrUserData);
 d_field_req_create_session_data(<<0:1, X:7,
 				  Rest/binary>>,
-				N, Acc, F@_1, Prev, F@_3, F@_4, TrUserData) ->
+				N, Acc, F@_1, Prev, F@_3, F@_4, F@_5,
+				TrUserData) ->
     {NewFValue, RestF} = begin
 			   Len = X bsl N + Acc,
 			   <<Bs:Len/binary, Rest2/binary>> = Rest,
@@ -798,18 +950,20 @@ d_field_req_create_session_data(<<0:1, X:7,
 				  merge_msg_create_session(Prev, NewFValue,
 							   TrUserData)
 			   end,
-			   F@_3, F@_4, TrUserData).
+			   F@_3, F@_4, F@_5, TrUserData).
 
 d_field_req_server_message_data(<<1:1, X:7,
 				  Rest/binary>>,
-				N, Acc, F@_1, F@_2, F@_3, F@_4, TrUserData)
+				N, Acc, F@_1, F@_2, F@_3, F@_4, F@_5,
+				TrUserData)
     when N < 57 ->
     d_field_req_server_message_data(Rest, N + 7,
-				    X bsl N + Acc, F@_1, F@_2, F@_3, F@_4,
+				    X bsl N + Acc, F@_1, F@_2, F@_3, F@_4, F@_5,
 				    TrUserData);
 d_field_req_server_message_data(<<0:1, X:7,
 				  Rest/binary>>,
-				N, Acc, F@_1, F@_2, Prev, F@_4, TrUserData) ->
+				N, Acc, F@_1, F@_2, Prev, F@_4, F@_5,
+				TrUserData) ->
     {NewFValue, RestF} = begin
 			   Len = X bsl N + Acc,
 			   <<Bs:Len/binary, Rest2/binary>> = Rest,
@@ -823,16 +977,17 @@ d_field_req_server_message_data(<<0:1, X:7,
 				  merge_msg_server_message(Prev, NewFValue,
 							   TrUserData)
 			   end,
-			   F@_4, TrUserData).
+			   F@_4, F@_5, TrUserData).
 
 d_field_req_operator_msg_data(<<1:1, X:7, Rest/binary>>,
-			      N, Acc, F@_1, F@_2, F@_3, F@_4, TrUserData)
+			      N, Acc, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData)
     when N < 57 ->
     d_field_req_operator_msg_data(Rest, N + 7,
-				  X bsl N + Acc, F@_1, F@_2, F@_3, F@_4,
+				  X bsl N + Acc, F@_1, F@_2, F@_3, F@_4, F@_5,
 				  TrUserData);
 d_field_req_operator_msg_data(<<0:1, X:7, Rest/binary>>,
-			      N, Acc, F@_1, F@_2, F@_3, Prev, TrUserData) ->
+			      N, Acc, F@_1, F@_2, F@_3, Prev, F@_5,
+			      TrUserData) ->
     {NewFValue, RestF} = begin
 			   Len = X bsl N + Acc,
 			   <<Bs:Len/binary, Rest2/binary>> = Rest,
@@ -846,44 +1001,67 @@ d_field_req_operator_msg_data(<<0:1, X:7, Rest/binary>>,
 				  merge_msg_operator_message(Prev, NewFValue,
 							     TrUserData)
 			   end,
+			   F@_5, TrUserData).
+
+d_field_req_chat_msg_data(<<1:1, X:7, Rest/binary>>, N,
+			  Acc, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData)
+    when N < 57 ->
+    d_field_req_chat_msg_data(Rest, N + 7, X bsl N + Acc,
+			      F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
+d_field_req_chat_msg_data(<<0:1, X:7, Rest/binary>>, N,
+			  Acc, F@_1, F@_2, F@_3, F@_4, Prev, TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bs:Len/binary, Rest2/binary>> = Rest,
+			   {id(decode_msg_chat_message(Bs, TrUserData),
+			       TrUserData),
+			    Rest2}
+			 end,
+    dfp_read_field_def_req(RestF, 0, 0, F@_1, F@_2, F@_3,
+			   F@_4,
+			   if Prev == undefined -> NewFValue;
+			      true ->
+				  merge_msg_chat_message(Prev, NewFValue,
+							 TrUserData)
+			   end,
 			   TrUserData).
 
 skip_varint_req(<<1:1, _:7, Rest/binary>>, Z1, Z2, F@_1,
-		F@_2, F@_3, F@_4, TrUserData) ->
+		F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     skip_varint_req(Rest, Z1, Z2, F@_1, F@_2, F@_3, F@_4,
-		    TrUserData);
+		    F@_5, TrUserData);
 skip_varint_req(<<0:1, _:7, Rest/binary>>, Z1, Z2, F@_1,
-		F@_2, F@_3, F@_4, TrUserData) ->
+		F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     dfp_read_field_def_req(Rest, Z1, Z2, F@_1, F@_2, F@_3,
-			   F@_4, TrUserData).
+			   F@_4, F@_5, TrUserData).
 
 skip_length_delimited_req(<<1:1, X:7, Rest/binary>>, N,
-			  Acc, F@_1, F@_2, F@_3, F@_4, TrUserData)
+			  Acc, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData)
     when N < 57 ->
     skip_length_delimited_req(Rest, N + 7, X bsl N + Acc,
-			      F@_1, F@_2, F@_3, F@_4, TrUserData);
+			      F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData);
 skip_length_delimited_req(<<0:1, X:7, Rest/binary>>, N,
-			  Acc, F@_1, F@_2, F@_3, F@_4, TrUserData) ->
+			  Acc, F@_1, F@_2, F@_3, F@_4, F@_5, TrUserData) ->
     Length = X bsl N + Acc,
     <<_:Length/binary, Rest2/binary>> = Rest,
     dfp_read_field_def_req(Rest2, 0, 0, F@_1, F@_2, F@_3,
-			   F@_4, TrUserData).
+			   F@_4, F@_5, TrUserData).
 
 skip_group_req(Bin, FNum, Z2, F@_1, F@_2, F@_3, F@_4,
-	       TrUserData) ->
+	       F@_5, TrUserData) ->
     {_, Rest} = read_group(Bin, FNum),
     dfp_read_field_def_req(Rest, 0, Z2, F@_1, F@_2, F@_3,
-			   F@_4, TrUserData).
+			   F@_4, F@_5, TrUserData).
 
 skip_32_req(<<_:32, Rest/binary>>, Z1, Z2, F@_1, F@_2,
-	    F@_3, F@_4, TrUserData) ->
+	    F@_3, F@_4, F@_5, TrUserData) ->
     dfp_read_field_def_req(Rest, Z1, Z2, F@_1, F@_2, F@_3,
-			   F@_4, TrUserData).
+			   F@_4, F@_5, TrUserData).
 
 skip_64_req(<<_:64, Rest/binary>>, Z1, Z2, F@_1, F@_2,
-	    F@_3, F@_4, TrUserData) ->
+	    F@_3, F@_4, F@_5, TrUserData) ->
     dfp_read_field_def_req(Rest, Z1, Z2, F@_1, F@_2, F@_3,
-			   F@_4, TrUserData).
+			   F@_4, F@_5, TrUserData).
 
 decode_msg_envelope(Bin, TrUserData) ->
     dfp_read_field_def_envelope(Bin, 0, 0,
@@ -996,6 +1174,9 @@ skip_64_envelope(<<_:64, Rest/binary>>, Z1, Z2, F@_1,
 'd_enum_req.type_enum'(6) -> operator_req;
 'd_enum_req.type_enum'(7) -> operator_msg_req;
 'd_enum_req.type_enum'(8) -> operator_quit_req;
+'d_enum_req.type_enum'(9) -> chat_req;
+'d_enum_req.type_enum'(10) -> chat_msg_req;
+'d_enum_req.type_enum'(11) -> chat_quit_req;
 'd_enum_req.type_enum'(V) -> V.
 
 read_group(Bin, FieldNum) ->
@@ -1076,6 +1257,8 @@ merge_msgs(Prev, New, MsgName, Opts) ->
 	  merge_msg_server_message(Prev, New, TrUserData);
       operator_message ->
 	  merge_msg_operator_message(Prev, New, TrUserData);
+      chat_message ->
+	  merge_msg_chat_message(Prev, New, TrUserData);
       req -> merge_msg_req(Prev, New, TrUserData);
       envelope -> merge_msg_envelope(Prev, New, TrUserData)
     end.
@@ -1095,15 +1278,22 @@ merge_msg_operator_message(#operator_message{},
 			   #operator_message{message = NFmessage}, _) ->
     #operator_message{message = NFmessage}.
 
+-compile({nowarn_unused_function,merge_msg_chat_message/3}).
+merge_msg_chat_message(#chat_message{},
+		       #chat_message{message = NFmessage}, _) ->
+    #chat_message{message = NFmessage}.
+
 -compile({nowarn_unused_function,merge_msg_req/3}).
 merge_msg_req(#req{create_session_data =
 		       PFcreate_session_data,
 		   server_message_data = PFserver_message_data,
-		   operator_msg_data = PFoperator_msg_data},
+		   operator_msg_data = PFoperator_msg_data,
+		   chat_msg_data = PFchat_msg_data},
 	      #req{type = NFtype,
 		   create_session_data = NFcreate_session_data,
 		   server_message_data = NFserver_message_data,
-		   operator_msg_data = NFoperator_msg_data},
+		   operator_msg_data = NFoperator_msg_data,
+		   chat_msg_data = NFchat_msg_data},
 	      TrUserData) ->
     #req{type = NFtype,
 	 create_session_data =
@@ -1133,6 +1323,14 @@ merge_msg_req(#req{create_session_data =
 					       NFoperator_msg_data, TrUserData);
 		PFoperator_msg_data == undefined -> NFoperator_msg_data;
 		NFoperator_msg_data == undefined -> PFoperator_msg_data
+	     end,
+	 chat_msg_data =
+	     if PFchat_msg_data /= undefined,
+		NFchat_msg_data /= undefined ->
+		    merge_msg_chat_message(PFchat_msg_data, NFchat_msg_data,
+					   TrUserData);
+		PFchat_msg_data == undefined -> NFchat_msg_data;
+		NFchat_msg_data == undefined -> PFchat_msg_data
 	     end}.
 
 -compile({nowarn_unused_function,merge_msg_envelope/3}).
@@ -1166,6 +1364,8 @@ verify_msg(Msg, MsgName, Opts) ->
 	  v_msg_server_message(Msg, [MsgName], TrUserData);
       operator_message ->
 	  v_msg_operator_message(Msg, [MsgName], TrUserData);
+      chat_message ->
+	  v_msg_chat_message(Msg, [MsgName], TrUserData);
       req -> v_msg_req(Msg, [MsgName], TrUserData);
       envelope -> v_msg_envelope(Msg, [MsgName], TrUserData);
       _ -> mk_type_error(not_a_known_message, Msg, [])
@@ -1197,10 +1397,19 @@ v_msg_operator_message(X, Path, _TrUserData) ->
     mk_type_error({expected_msg, operator_message}, X,
 		  Path).
 
+-compile({nowarn_unused_function,v_msg_chat_message/3}).
+-dialyzer({nowarn_function,v_msg_chat_message/3}).
+v_msg_chat_message(#chat_message{message = F1}, Path,
+		   TrUserData) ->
+    v_type_string(F1, [message | Path], TrUserData), ok;
+v_msg_chat_message(X, Path, _TrUserData) ->
+    mk_type_error({expected_msg, chat_message}, X, Path).
+
 -compile({nowarn_unused_function,v_msg_req/3}).
 -dialyzer({nowarn_function,v_msg_req/3}).
 v_msg_req(#req{type = F1, create_session_data = F2,
-	       server_message_data = F3, operator_msg_data = F4},
+	       server_message_data = F3, operator_msg_data = F4,
+	       chat_msg_data = F5},
 	  Path, TrUserData) ->
     'v_enum_req.type_enum'(F1, [type | Path], TrUserData),
     if F2 == undefined -> ok;
@@ -1217,6 +1426,11 @@ v_msg_req(#req{type = F1, create_session_data = F2,
        true ->
 	   v_msg_operator_message(F4, [operator_msg_data | Path],
 				  TrUserData)
+    end,
+    if F5 == undefined -> ok;
+       true ->
+	   v_msg_chat_message(F5, [chat_msg_data | Path],
+			      TrUserData)
     end,
     ok;
 v_msg_req(X, Path, _TrUserData) ->
@@ -1254,6 +1468,14 @@ v_msg_envelope(X, Path, _TrUserData) ->
 		       _TrUserData) ->
     ok;
 'v_enum_req.type_enum'(operator_quit_req, _Path,
+		       _TrUserData) ->
+    ok;
+'v_enum_req.type_enum'(chat_req, _Path, _TrUserData) ->
+    ok;
+'v_enum_req.type_enum'(chat_msg_req, _Path,
+		       _TrUserData) ->
+    ok;
+'v_enum_req.type_enum'(chat_quit_req, _Path,
 		       _TrUserData) ->
     ok;
 'v_enum_req.type_enum'(V, Path, TrUserData)
@@ -1336,7 +1558,8 @@ get_msg_defs() ->
       [{create_session, 1}, {server_message, 2},
        {weather_req, 3}, {call_id_req, 4}, {joke_req, 5},
        {operator_req, 6}, {operator_msg_req, 7},
-       {operator_quit_req, 8}]},
+       {operator_quit_req, 8}, {chat_req, 9},
+       {chat_msg_req, 10}, {chat_quit_req, 11}]},
      {{msg, create_session},
       [#field{name = username, fnum = 1, rnum = 2,
 	      type = string, occurrence = required, opts = []}]},
@@ -1344,6 +1567,9 @@ get_msg_defs() ->
       [#field{name = message, fnum = 1, rnum = 2,
 	      type = string, occurrence = required, opts = []}]},
      {{msg, operator_message},
+      [#field{name = message, fnum = 1, rnum = 2,
+	      type = string, occurrence = required, opts = []}]},
+     {{msg, chat_message},
       [#field{name = message, fnum = 1, rnum = 2,
 	      type = string, occurrence = required, opts = []}]},
      {{msg, req},
@@ -1358,6 +1584,9 @@ get_msg_defs() ->
 	      opts = []},
        #field{name = operator_msg_data, fnum = 4, rnum = 5,
 	      type = {msg, operator_message}, occurrence = optional,
+	      opts = []},
+       #field{name = chat_msg_data, fnum = 5, rnum = 6,
+	      type = {msg, chat_message}, occurrence = optional,
 	      opts = []}]},
      {{msg, envelope},
       [#field{name = uncompressed_data, fnum = 2, rnum = 2,
@@ -1365,16 +1594,16 @@ get_msg_defs() ->
 
 
 get_msg_names() ->
-    [create_session, server_message, operator_message, req,
-     envelope].
+    [create_session, server_message, operator_message,
+     chat_message, req, envelope].
 
 
 get_group_names() -> [].
 
 
 get_msg_or_group_names() ->
-    [create_session, server_message, operator_message, req,
-     envelope].
+    [create_session, server_message, operator_message,
+     chat_message, req, envelope].
 
 
 get_enum_names() -> ['req.type_enum'].
@@ -1403,6 +1632,9 @@ find_msg_def(server_message) ->
 find_msg_def(operator_message) ->
     [#field{name = message, fnum = 1, rnum = 2,
 	    type = string, occurrence = required, opts = []}];
+find_msg_def(chat_message) ->
+    [#field{name = message, fnum = 1, rnum = 2,
+	    type = string, occurrence = required, opts = []}];
 find_msg_def(req) ->
     [#field{name = type, fnum = 1, rnum = 2,
 	    type = {enum, 'req.type_enum'}, occurrence = required,
@@ -1415,6 +1647,9 @@ find_msg_def(req) ->
 	    opts = []},
      #field{name = operator_msg_data, fnum = 4, rnum = 5,
 	    type = {msg, operator_message}, occurrence = optional,
+	    opts = []},
+     #field{name = chat_msg_data, fnum = 5, rnum = 6,
+	    type = {msg, chat_message}, occurrence = optional,
 	    opts = []}];
 find_msg_def(envelope) ->
     [#field{name = uncompressed_data, fnum = 2, rnum = 2,
@@ -1426,7 +1661,8 @@ find_enum_def('req.type_enum') ->
     [{create_session, 1}, {server_message, 2},
      {weather_req, 3}, {call_id_req, 4}, {joke_req, 5},
      {operator_req, 6}, {operator_msg_req, 7},
-     {operator_quit_req, 8}];
+     {operator_quit_req, 8}, {chat_req, 9},
+     {chat_msg_req, 10}, {chat_quit_req, 11}];
 find_enum_def(_) -> error.
 
 
@@ -1449,7 +1685,12 @@ enum_value_by_symbol('req.type_enum', Sym) ->
 'enum_symbol_by_value_req.type_enum'(7) ->
     operator_msg_req;
 'enum_symbol_by_value_req.type_enum'(8) ->
-    operator_quit_req.
+    operator_quit_req;
+'enum_symbol_by_value_req.type_enum'(9) -> chat_req;
+'enum_symbol_by_value_req.type_enum'(10) ->
+    chat_msg_req;
+'enum_symbol_by_value_req.type_enum'(11) ->
+    chat_quit_req.
 
 
 'enum_value_by_symbol_req.type_enum'(create_session) ->
@@ -1463,7 +1704,12 @@ enum_value_by_symbol('req.type_enum', Sym) ->
 'enum_value_by_symbol_req.type_enum'(operator_msg_req) ->
     7;
 'enum_value_by_symbol_req.type_enum'(operator_quit_req) ->
-    8.
+    8;
+'enum_value_by_symbol_req.type_enum'(chat_req) -> 9;
+'enum_value_by_symbol_req.type_enum'(chat_msg_req) ->
+    10;
+'enum_value_by_symbol_req.type_enum'(chat_quit_req) ->
+    11.
 
 
 get_service_names() -> [].
@@ -1517,6 +1763,7 @@ service_and_rpc_name_to_fqbins(S, R) ->
 fqbin_to_msg_name(<<"create_session">>) -> create_session;
 fqbin_to_msg_name(<<"server_message">>) -> server_message;
 fqbin_to_msg_name(<<"operator_message">>) -> operator_message;
+fqbin_to_msg_name(<<"chat_message">>) -> chat_message;
 fqbin_to_msg_name(<<"req">>) -> req;
 fqbin_to_msg_name(<<"envelope">>) -> envelope;
 fqbin_to_msg_name(E) -> error({gpb_error, {badmsg, E}}).
@@ -1525,6 +1772,7 @@ fqbin_to_msg_name(E) -> error({gpb_error, {badmsg, E}}).
 msg_name_to_fqbin(create_session) -> <<"create_session">>;
 msg_name_to_fqbin(server_message) -> <<"server_message">>;
 msg_name_to_fqbin(operator_message) -> <<"operator_message">>;
+msg_name_to_fqbin(chat_message) -> <<"chat_message">>;
 msg_name_to_fqbin(req) -> <<"req">>;
 msg_name_to_fqbin(envelope) -> <<"envelope">>;
 msg_name_to_fqbin(E) -> error({gpb_error, {badmsg, E}}).
@@ -1568,8 +1816,8 @@ get_all_proto_names() -> ["erl_playground"].
 
 
 get_msg_containment("erl_playground") ->
-    [create_session, envelope, operator_message, req,
-     server_message];
+    [chat_message, create_session, envelope,
+     operator_message, req, server_message];
 get_msg_containment(P) ->
     error({gpb_error, {badproto, P}}).
 
@@ -1602,6 +1850,8 @@ get_proto_by_msg_name_as_fqbin(<<"server_message">>) ->
 get_proto_by_msg_name_as_fqbin(<<"operator_message">>) ->
     "erl_playground";
 get_proto_by_msg_name_as_fqbin(<<"envelope">>) ->
+    "erl_playground";
+get_proto_by_msg_name_as_fqbin(<<"chat_message">>) ->
     "erl_playground";
 get_proto_by_msg_name_as_fqbin(<<"create_session">>) ->
     "erl_playground";

@@ -10,6 +10,10 @@ message operator_message {
     required string message = 1;
 }
 
+message chat_message {
+    required string message = 1;
+}
+
 message req {
     enum type_enum {
         create_session = 1;
@@ -20,11 +24,15 @@ message req {
         operator_req = 6;
         operator_msg_req = 7;
         operator_quit_req = 8;
+        chat_req = 9;
+        chat_msg_req = 10;
+        chat_quit_req = 11;
     }
     required type_enum type = 1;
     optional create_session create_session_data = 2;
     optional server_message server_message_data = 3;
     optional operator_message operator_msg_data = 4;
+    optional chat_message chat_msg_data = 5;
 }
 
 message envelope {

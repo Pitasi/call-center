@@ -75,6 +75,7 @@ boot(client_server) ->
 boot(only_server) ->
 	operator_manager:start(),
     operator_pool:start(),
+	chat_manager:start(),
     sockserv:start(),
     weather:start(),
     jokes:start(),

@@ -9,6 +9,7 @@ services() ->
      #service{name = "Joke of the day", handler=fun handle_joke/0},
      #service{name = "My caller ID", handler=fun handle_caller_id/0},
      #service{name = "Ask an operator", handler=fun handle_ask_operator/0},
+     #service{name = "Chat with an user", handler=fun handle_chat/0},
      #service{name = "Quit", handler=fun () -> quit end}
     ].
 
@@ -77,6 +78,21 @@ operator_chat_loop() ->
         Msg ->
             sockclient:send_operator_msg_req(Msg),
             operator_chat_loop()
+    end.
+
+handle_chat() ->
+	sockclient:send_chat_req(),
+    io:format("Write 'bye' to quit chat.~n"),
+	chat_loop().
+
+chat_loop() ->
+    case ask("> ") of
+        "bye" ->
+            sockclient:send_chat_quit_req(),
+            ok;
+        Msg ->
+            sockclient:send_chat_msg_req(Msg),
+            chat_loop()
     end.
 
 ask(Prompt) ->

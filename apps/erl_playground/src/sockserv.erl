@@ -37,6 +37,12 @@
 }).
 -type state() :: #state{}.
 
+%% user is a record used for chat between users.
+-record(user, {
+	transport,
+	socket
+}).
+
 %% ------------------------------------------------------------------
 %% Macro Definitions
 %% ------------------------------------------------------------------
@@ -151,13 +157,15 @@ process_packet(undefined, State, _Now) ->
 process_packet(#req{ type = Type } = Req, State = #state{}, _Now) ->
     case handle_request(Type, Req, State) of
         {noreply, NewState} -> NewState;
-        {Response, NewState} -> send(Response, NewState)
+        {Response, NewState} -> send(Response, NewState), NewState
     end.
 
-send(Response, State = #state{socket = Socket, transport = Transport}) ->
+send(Response, #state{socket = Socket, transport = Transport}) ->
+	send(Response, Socket, Transport).
+
+send(Response, Socket, Transport) ->
     Data = utils:add_envelope(Response),
-    Transport:send(Socket, Data),
-    State.
+    Transport:send(Socket, Data).
 
 %% ------------------------------------------------------------------
 %% Request handlers
@@ -228,6 +236,37 @@ handle_request(operator_msg_req, #req{
 		{error, _} ->
 			NewState = State#state{operator = undefined},
 			{server_message("[server] You can't ask more questions.~n"), NewState}
+	end;
+
+handle_request(chat_req, _Req, #state{socket = Socket, transport = Transport} = State) ->
+	User = #user{socket = Socket, transport = Transport},
+	chat_manager:add(User),
+	{server_message("[server] You entered a chat room.~n"), State};
+
+handle_request(chat_msg_req, #req{
+    chat_msg_data = #chat_message {
+        message = Message
+    }
+}, #state{socket = Socket, transport = Transport, username = Username} = State) ->
+	User = #user{socket = Socket, transport = Transport},
+	case chat_manager:get_partner(User) of
+		{ok, #user{socket = PartnerSocket, transport = PartnerTransport}} ->
+			send(server_message(
+			   io_lib:format("[~s] ~s~n", [Username, Message])
+			), PartnerSocket, PartnerTransport),
+			{noreply, State};
+		_ ->
+			{server_message("[server] You aren't connected to a partner.~n"), State}
+	end;
+
+handle_request(chat_quit_req, _Req, #state{socket = Socket, transport = Transport} = State) ->
+	User = #user{socket = Socket, transport = Transport},
+	case chat_manager:close(User) of
+		{ok, undefined} ->
+			{server_message("[server] Bye!~n"), State};
+		{ok, #user{socket = Partner, transport = Transport}} ->
+			send(server_message("[server] Your partner quit the chat.~n"), Partner, Transport),
+			{server_message("[server] Bye!~n"), State}
 	end.
 
 build_operator_message(Answer) ->
