@@ -13,7 +13,8 @@ The services offered by the call center are:
 | 1  | Weather forecasts | Replies telling what's the weather like tomorrow |
 | 2  | Jokes of the day  | Replies with a different joke everyday           |
 | 3  | Call ID           | Replies with the unique ID of the current call   |
-| 3  | Ask an operator   | Starts a conversation to an operator             |
+| 4  | Ask an operator   | Starts a conversation to an operator             |
+| 5  | Chat              | Starts a conversation with a random user         |
 
 When the call is started from the user, the responder lists all the services
 above. The user can dial one of the IDs to make a choice. At the end of the
@@ -37,7 +38,7 @@ current *call*: username of the user, UID of the call, TCP socket, ....
 ### Weather service
 
 Weather service (`weather` module) provides a simple API to get forecasts for
-this week weather.
+this week's weather.
 
 
 ### Client
@@ -50,10 +51,24 @@ loop. It's meant to be a *frontend* for the underlying `sockclient` library.
 
 The *operator* for this exercise is simulated by an echo server.
 
-The echo server replies to a maximum number of messages from the user (default:
-3) and for a limited amount of time (default: 10 seconds).
+A pool of operators is inited at boot (implemented using poolboy library).
+Access to the pool is proxied through `operator_manager`, which is in charge of
+applying access limits to the operator (i.e. a timeout of 10 seconds and a
+maximum number of questions of 3).
 
-An operator is an Erlang process.
+
+### Chat
+
+An user can start the chat service, at this point it is in the waitlist. When
+another user starts the chat service, the two are matched together.
+
+This logic is implemented in `chat_manager` module, which actually is agnostic
+from the data structure used: it just pairs two objects together and offers a
+function for getting the corresponding partner.
+
+`sockserv` uses `chat_manager` to store the socket (and the transport type) of
+the current user. Then, it can access the socket of the partner to know where
+to deliver messages written by the user.
 
 
 # Run
@@ -71,6 +86,13 @@ While in the shell, `client` module can be used:
 
 ```
 > client:run().
+```
+
+For running other clients (without the entire server):
+
+```
+$ rebar3 shell --start-clean
+>>> sockclient:start_link(), client:run().
 ```
 
 ---
